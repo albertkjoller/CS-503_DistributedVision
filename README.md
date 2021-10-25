@@ -7,3 +7,7 @@ VizDoom tutorial page: http://vizdoom.cs.put.edu.pl/tutorial
 
 VizDoom repo: https://github.com/mwydmuch/ViZDoom
 - Overview of methods: https://github.com/mwydmuch/ViZDoom/blob/master/doc/DoomGame.md
+
+
+## Agents
+IMPALA repo: https://github.com/deepmind/scalable_agent
