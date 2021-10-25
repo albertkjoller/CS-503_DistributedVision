@@ -7,6 +7,7 @@ VizDoom tutorial page: http://vizdoom.cs.put.edu.pl/tutorial
 
 VizDoom repo: https://github.com/mwydmuch/ViZDoom
 - Overview of methods: https://github.com/mwydmuch/ViZDoom/blob/master/doc/DoomGame.md
+- Example of NavDoom: https://github.com/agiantwhale/navdoom#navdoom---a-vizdoom-maze-generator
 
 
 ## Agents
