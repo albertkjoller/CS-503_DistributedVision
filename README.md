@@ -11,3 +11,5 @@ VizDoom repo: https://github.com/mwydmuch/ViZDoom
 
 ## Agents
 IMPALA repo: https://github.com/deepmind/scalable_agent
+
+PPO implementation: https://github.com/higgsfield/RL-Adventure-2/blob/master/3.ppo.ipynb
