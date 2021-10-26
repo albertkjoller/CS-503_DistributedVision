@@ -1,19 +1,25 @@
+"""
+CS-503 - Distributed Vision (Burmester Felix, Jacobsen Albert, Poulsen Niels)
+
+Basic script for the setup of the Reinforcement Learning problem. Contains three major instances:
+1) the 'Environment' class, specifying the VizDoom game setup and the step-function for updating env. when interacting
+2) the 'Agent' class, specifying the policy of an agent as well as the algorithm used for training
+3) the training loop, simulating an agents interaction with the environment and updating its learning parameters
+"""
 
 from __future__ import print_function
 
-import time
-import random
-import cv2
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from vizdoom import vizdoom
-#from vizdoom import *
 import numpy as np
-from argparse import ArgumentParser
 import itertools as it
 
 
 class Environment():
+    """
+    Environment setup - using VizDoom variable names for the game environment to create an OpenAI-like instance
+    for consistency with OpenAI gym tools
+    """
 
     def __init__(self, config_file_path, window_visible=False):
 
@@ -23,8 +29,10 @@ class Environment():
         self.actions_size = len(self.actions)
 
     def initialize_vizdoom(self, config_file_path, window_visible=False):
-        """    # Load configuration from content/setting/..cfg
         """
+        Load configuration from path...
+        """
+
         print("Initializing doom...")
         self.game = vizdoom.DoomGame()
         self.game.load_config(config_file_path)
@@ -35,6 +43,10 @@ class Environment():
         print("Doom setup succesfull.")
 
     def step(self, a):
+        """
+        Step function for interaction in the environment
+        """
+
         r = self.game.make_action(a)
         done = self.game.is_episode_finished()
 
@@ -43,17 +55,25 @@ class Environment():
         sp = self.game.get_state().screen_buffer if not done else 0
         return sp, r, done
 
+
 class Agent:
     """ Main agent class. Three items: 1) initialization, 2) policy and 3) training step"""
     def __init__(self, env):
         self.env = env
 
     def pi(self, s, k=None):
+        """
+        Policy of the agent
+        """
         # Random policy
         random_idx = np.random.choice(self.env.actions_size)
         return self.env.actions[random_idx]
 
     def train(self, s, a, r, sp, done=False):
+        """
+        Algorithm for training the agent
+        """
+        # Currently no training
         pass
 
 
@@ -93,7 +113,7 @@ def train(env, agent, episodes):
 
 if __name__ == '__main__':
 
-    config_file_path = "setting/setting.cfg"
+    config_file_path = "setting/settings.cfg"
 
     env = Environment(config_file_path=config_file_path, window_visible=True)
     agent = Agent(env)
