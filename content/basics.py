@@ -13,6 +13,7 @@ from tqdm import tqdm
 from vizdoom import vizdoom
 import numpy as np
 import itertools as it
+import matplotlib.pyplot as plt
 
 
 class Environment():
@@ -21,14 +22,14 @@ class Environment():
     for consistency with OpenAI gym tools
     """
 
-    def __init__(self, config_file_path, window_visible=False):
+    def __init__(self, config_file_path, window_visible=False, depth=False, labels=False):
 
-        self.initialize_vizdoom(config_file_path, window_visible)
+        self.initialize_vizdoom(config_file_path, window_visible, depth, labels)
         n = self.game.get_available_buttons_size()
         self.actions = [list(a) for a in it.product([0, 1], repeat=n)]
         self.actions_size = len(self.actions)
 
-    def initialize_vizdoom(self, config_file_path, window_visible=False):
+    def initialize_vizdoom(self, config_file_path, window_visible=False, depth=False, labels=False):
         """
         Load configuration from path...
         """
@@ -38,8 +39,11 @@ class Environment():
         self.game.load_config(config_file_path)
         self.game.set_window_visible(window_visible)
         self.game.set_mode(vizdoom.Mode.PLAYER)
-        self.game.set_screen_format(vizdoom.ScreenFormat.GRAY8)
+        #self.game.set_screen_format(vizdoom.ScreenFormat.GRAY8)
+        self.game.set_screen_format(vizdoom.ScreenFormat.RGB24)
         self.game.set_screen_resolution(vizdoom.ScreenResolution.RES_640X480)
+        self.game.set_depth_buffer_enabled(depth)
+        self.game.set_labels_buffer_enabled(labels)
         print("Doom setup succesfull.")
 
     def step(self, a):
@@ -94,9 +98,9 @@ def train(env, agent, episodes):
                 s = env.game.get_state()
                 screen = s.screen_buffer
                 depth = s.depth_buffer
-                labels = s.labels_buffer
+                segment = s.labels_buffer
                 automap = s.automap_buffer
-                labels = s.labels
+                #labels = s.labels
 
                 a = agent.pi(s=screen)
                 sp, r, done = env.step(a)
@@ -115,7 +119,7 @@ if __name__ == '__main__':
 
     config_file_path = "setting/settings.cfg"
 
-    env = Environment(config_file_path=config_file_path, window_visible=True)
+    env = Environment(config_file_path=config_file_path, window_visible=True, depth=True, labels=True)
     agent = Agent(env)
 
     num_episodes = 10
