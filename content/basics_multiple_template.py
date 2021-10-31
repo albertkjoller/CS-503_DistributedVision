@@ -85,16 +85,6 @@ class Agent:
 def train(env, agent, episodes, episode_length=2100):
     """General training loop - applicable to multiple different agents"""
 
-    processes = []
-    for i in range(1, env.players):
-        p_join = Process(target=player_join, args=(i,))
-        p_join.start()
-        processes.append(p_join)
-
-        env.initialize_player()
-        env.game.add_game_args("-join 127.0.0.1 +name Player" + str(i) + " +colorset " + str(i))
-
-
     env.initialize_player()
     env.game.add_game_args("-host " + str(env.players) + " -netmode 0 +timelimit " + str(episode_length) +
                        " +sv_spawnfarthest 1 +name Player0 +colorset 0")
@@ -111,22 +101,12 @@ def train(env, agent, episodes, episode_length=2100):
         with tqdm(total=env.game.get_episode_timeout(), desc=f"Episode {episode_iteration}", position=0, leave=True, colour='green') as tq:
             while not env.game.is_episode_finished():
 
-                #TODO: s is only one state right now (for the host agent)
-                states = []
-                for player in range(env.players):
-                    s = env.game.get_state()
-                    screen = s.screen_buffer
-                    depth = s.depth_buffer
-                    states.append(screen)
+                s = env.game.get_state()
+                screen = s.screen_buffer
+                depth = s.depth_buffer
+                a = agent.pi(s)
 
-                    if player == 0:
-                        a = [0, 0, 0]
-                    elif player == 1:
-                        a = [1, 0, 0]
-                    elif player == 2:
-                        a = agent.pi(s=screen) #TODO: Either off-policy (action taken on old policy) or find a way to get all three states before moving
-
-                    sp, r, done = env.step(a)
+                sp, r, done = env.step(a)
                 agent.train(s, a, r, sp, done)
 
                 time_step += 1
@@ -154,7 +134,7 @@ def player_join(p):
     for i in range(num_episodes):
         while not env.game.is_episode_finished():
             s = env.game.get_state()
-            a = agent.pi(s) #TODO: find out how to transfer states without taking action
+            a = agent.pi(s)
             env.step(a)
 
         env.game.new_episode()
@@ -170,5 +150,11 @@ if __name__ == '__main__':
 
     env = Environment(config_file_path=config_file_path, window_visible=True, depth=True, players=cameras)
     agent = Agent(env)
+
+    processes = []
+    for i in range(1, cameras):
+        p_join = Process(target=player_join, args=(i,))
+        p_join.start()
+        processes.append(p_join)
 
     train(env, agent, episodes=num_episodes, episode_length=episode_length)
