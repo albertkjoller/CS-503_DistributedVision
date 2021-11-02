@@ -11,12 +11,8 @@ from __future__ import print_function
 
 from tqdm import tqdm
 from vizdoom import vizdoom
-import numpy as np
-import itertools as it
-import matplotlib.pyplot as plt
 
 import torch
-from torch import optim
 import torch.nn as nn
 import torch.distributions as distributions
 from torchvision.models import resnet18
@@ -155,7 +151,7 @@ class PPO:
 
         
         # Optimize policy for K epochs
-        for _ in range(self.K_epochs):
+        for _ in tqdm(range(self.K_epochs), desc=f"Updating Model", position=0, leave=True, colour='red'):
 
             # Evaluating old actions and values
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
@@ -220,11 +216,11 @@ class Environment():
         print("Initializing doom...")
         self.game = vizdoom.DoomGame()
         self.game.load_config(config_file_path)
-        self.game.set_window_visible(False)
+        self.game.set_window_visible(window_visible)
         self.game.set_mode(vizdoom.Mode.PLAYER)
         #self.game.set_screen_format(vizdoom.ScreenFormat.GRAY8)
         self.game.set_screen_format(vizdoom.ScreenFormat.RGB24)
-        self.game.set_screen_resolution(vizdoom.ScreenResolution.RES_640X480)
+        self.game.set_screen_resolution(vizdoom.ScreenResolution.RES_160X120)
         self.game.set_depth_buffer_enabled(depth)
         self.game.set_labels_buffer_enabled(labels)
         self.game.set_available_buttons(buttons)
@@ -262,25 +258,25 @@ def train(env, agent, episodes, max_ep_len, update_timestep):
             time_step += 1
             episode_reward += reward
 
-            # update PPO agent
-            if time_step % update_timestep == 0:
-                agent.update()
-
             if done:
                 break
+
+        # update PPO agent
+        if time_step % update_timestep == 0:
+            agent.update()
 
 
 if __name__ == '__main__':
 
     config_file_path = "setting/settings.cfg"
     
-    state_dim = (640, 480)  # RES_640X480
+    state_dim = (160, 120)  # RES_160X120
     action_dim = 6          # [forward, back, left, right, move left, move right]
 
     ################ PPO hyperparameters ################
-    max_ep_len = 100                      # max timesteps in one episode
+    max_ep_len = 1000                     # max timesteps in one episode
     update_timestep = max_ep_len * 4      # update policy every n timesteps
-    K_epochs = 80                         # update policy for K epochs in one PPO update
+    K_epochs = 20                         # update policy for K epochs in one PPO update
     eps_clip = 0.2          # clip parameter for PPO
     gamma = 0.99            # discount factor
     lr_actor = 0.0003       # learning rate for actor network
