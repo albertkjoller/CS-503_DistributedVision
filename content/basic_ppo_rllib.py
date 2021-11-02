@@ -117,9 +117,12 @@ trainer = ppo.PPOTrainer(
             "width": 160,
             "config_file_path": Path("setting/settings.cfg"),
             "buttons": [
-                vizdoom.Button.MOVE_FORWARD,
-                vizdoom.Button.TURN_LEFT,
-                vizdoom.Button.TURN_RIGHT
+                vizdoom.Button.MOVE_LEFT,
+                vizdoom.Button.MOVE_RIGHT,
+                vizdoom.Button.ATTACK
+                #vizdoom.Button.MOVE_FORWARD,
+                #vizdoom.Button.TURN_LEFT,
+                #vizdoom.Button.TURN_RIGHT
             ],
             "window_visible": True,
             "screen_resolution": vizdoom.ScreenResolution.RES_160X120,

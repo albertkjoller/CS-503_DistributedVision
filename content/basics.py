@@ -99,9 +99,9 @@ class Agent:
 def player_join(p):
     #Manual setup - would be nice to find a solution in an object-related form
     config_file_path = "setting/settings.cfg"
-    cameras = 3  # number of players
+    cameras = 4  # number of players
     num_episodes = 100
-    episode_length = 20  # 2100
+    episode_length = 200  # 2100
     env = Environment(config_file_path=config_file_path, window_visible=True, depth=True, players=cameras)
     agent = Agent(env)
 
@@ -169,9 +169,9 @@ def train(env, agent, episodes, episode_length=2100):
 if __name__ == '__main__':
 
     config_file_path = "setting/settings.cfg"
-    cameras = 3  # number of players
+    cameras = 4  # number of players
     num_episodes = 100
-    episode_length = 20  # 2100
+    episode_length = 200  # 2100
 
     env = Environment(config_file_path=config_file_path, window_visible=True, depth=True, players=cameras)
     agent = Agent(env)
