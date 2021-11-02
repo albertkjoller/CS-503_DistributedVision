@@ -77,7 +77,6 @@ class Agent:
         Policy of the agent
         """
         # Random policy
-        # TODO: trying to append states to train central agent on multiple screen views - not working right now
         k = self.time_step
         if k in self.states.keys():
             self.states[k].append(s)
@@ -95,34 +94,25 @@ class Agent:
         # Currently no training
         pass
 
-
-def player_join(p):
-    #Manual setup - would be nice to find a solution in an object-related form
-    config_file_path = "setting/settings.cfg"
-    cameras = 3  # number of players
-    num_episodes = 100
-    episode_length = 20  # 2100
-    env = Environment(config_file_path=config_file_path, window_visible=True, depth=True, players=cameras)
-    agent = Agent(env)
-
-    env.initialize_player()
-    env.game.add_game_args("-join 127.0.0.1 +name Player" + str(p) + " +colorset " + str(p))
-
-    env.game.init()
-
-    for i in range(num_episodes):
-        while not env.game.is_episode_finished():
-            s = env.game.get_state()
-            # screen = s.screen_buffer
-            a = agent.pi(s)
-            env.step(a)
-
-        env.game.new_episode()
-
-    env.game.close()
-
 def train(env, agent, episodes, episode_length=2100):
     """General training loop - applicable to multiple different agents"""
+
+    def player_join(p):
+        env.initialize_player()
+        env.game.add_game_args("-join 127.0.0.1 +name Player" + str(p) + " +colorset " + str(p))
+
+        env.game.init()
+
+        for i in range(num_episodes):
+            while not env.game.is_episode_finished():
+                s = env.game.get_state()
+                # screen = s.screen_buffer
+                a = agent.pi(s)
+                env.step(a)
+
+            env.game.new_episode()
+
+        env.game.close()
 
     processes = []
     for i in range(1, env.players):
