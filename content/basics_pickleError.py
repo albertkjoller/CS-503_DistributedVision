@@ -13,6 +13,7 @@ from tqdm import tqdm
 from vizdoom import vizdoom
 import numpy as np
 import itertools as it
+from collections import defaultdict
 from multiprocessing import cpu_count, Process
 import matplotlib.pyplot as plt
 
@@ -65,12 +66,23 @@ class Agent:
     """ Main agent class. Three items: 1) initialization, 2) policy and 3) training step"""
     def __init__(self, env):
         self.env = env
+        self.states = defaultdict(dict)
+        self.rewards = {}
+        self.actions_players = {}
+
+        self.time_step = 0
 
     def pi(self, s, k=None):
         """
         Policy of the agent
         """
         # Random policy
+        k = self.time_step
+        if k in self.states.keys():
+            self.states[k].append(s)
+        else:
+            self.states[k] = [s]
+
         random_idx = np.random.choice(self.env.actions_size)
         a = self.env.actions[random_idx]
         return a
@@ -85,6 +97,33 @@ class Agent:
 def train(env, agent, episodes, episode_length=2100):
     """General training loop - applicable to multiple different agents"""
 
+    def player_join(p):
+        env.initialize_player()
+        env.game.add_game_args("-join 127.0.0.1 +name Player" + str(p) + " +colorset " + str(p))
+
+        env.game.init()
+
+        for i in range(num_episodes):
+            while not env.game.is_episode_finished():
+                s = env.game.get_state()
+                # screen = s.screen_buffer
+                a = agent.pi(s)
+                env.step(a)
+
+            env.game.new_episode()
+
+        env.game.close()
+
+    processes = []
+    for i in range(1, env.players):
+        p_join = Process(target=player_join, args=(i,))
+        p_join.start()
+        processes.append(p_join)
+
+        env.initialize_player()
+        env.game.add_game_args("-join 127.0.0.1 +name Player" + str(i) + " +colorset " + str(i))
+
+
     env.initialize_player()
     env.game.add_game_args("-host " + str(env.players) + " -netmode 0 +timelimit " + str(episode_length) +
                        " +sv_spawnfarthest 1 +name Player0 +colorset 0")
@@ -95,21 +134,20 @@ def train(env, agent, episodes, episode_length=2100):
     for episode_iteration in tqdm(range(episodes)):
         env.game.new_episode()
 
-        time_step = 0
+        agent.time_step = 0
         reward = []
 
         with tqdm(total=env.game.get_episode_timeout(), desc=f"Episode {episode_iteration}", position=0, leave=True, colour='green') as tq:
             while not env.game.is_episode_finished():
 
                 s = env.game.get_state()
-                screen = s.screen_buffer
-                depth = s.depth_buffer
-                a = agent.pi(s)
 
+                a = agent.pi(s=s)
                 sp, r, done = env.step(a)
+
                 agent.train(s, a, r, sp, done)
 
-                time_step += 1
+                agent.time_step += 1
                 reward.append(r)
                 tq.update()
 
@@ -117,29 +155,6 @@ def train(env, agent, episodes, episode_length=2100):
 
 
 
-def player_join(p):
-    config_file_path = "setting/settings.cfg"
-    cameras = 3  # number of players
-    num_episodes = 100
-    player_skip = 4
-
-    env = Environment(config_file_path=config_file_path, window_visible=True, depth=True, players=cameras)
-    agent = Agent(env)
-
-    env.initialize_player()
-    env.game.add_game_args("-join 127.0.0.1 +name Player" + str(p) + " +colorset " + str(p))
-
-    env.game.init()
-
-    for i in range(num_episodes):
-        while not env.game.is_episode_finished():
-            s = env.game.get_state()
-            a = agent.pi(s)
-            env.step(a)
-
-        env.game.new_episode()
-
-    env.game.close()
 
 if __name__ == '__main__':
 
@@ -150,11 +165,5 @@ if __name__ == '__main__':
 
     env = Environment(config_file_path=config_file_path, window_visible=True, depth=True, players=cameras)
     agent = Agent(env)
-
-    processes = []
-    for i in range(1, cameras):
-        p_join = Process(target=player_join, args=(i,))
-        p_join.start()
-        processes.append(p_join)
 
     train(env, agent, episodes=num_episodes, episode_length=episode_length)
