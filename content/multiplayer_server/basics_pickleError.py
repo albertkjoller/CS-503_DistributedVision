@@ -158,7 +158,7 @@ def train(env, agent, episodes, episode_length=2100):
 
 if __name__ == '__main__':
 
-    config_file_path = "setting/settings.cfg"
+    config_file_path = "../setting/settings.cfg"
     cameras = 3  # number of players
     num_episodes = 100
     episode_length = 20  # 2100

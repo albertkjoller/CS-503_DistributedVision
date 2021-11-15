@@ -98,7 +98,7 @@ class Agent:
 
 def player_join(p):
     #Manual setup - would be nice to find a solution in an object-related form
-    config_file_path = "setting/settings.cfg"
+    config_file_path = "../setting/settings.cfg"
     cameras = 4  # number of players
     num_episodes = 100
     episode_length = 200  # 2100
@@ -111,6 +111,9 @@ def player_join(p):
     env.game.init()
 
     for i in range(num_episodes):
+        a = 1
+        env.inti
+
         while not env.game.is_episode_finished():
             s = env.game.get_state()
             # screen = s.screen_buffer
@@ -168,7 +171,7 @@ def train(env, agent, episodes, episode_length=2100):
 
 if __name__ == '__main__':
 
-    config_file_path = "setting/settings.cfg"
+    config_file_path = "../setting/settings.cfg"
     cameras = 4  # number of players
     num_episodes = 100
     episode_length = 200  # 2100

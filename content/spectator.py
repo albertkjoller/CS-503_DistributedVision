@@ -12,8 +12,11 @@ from argparse import ArgumentParser
 import os
 from time import sleep
 import vizdoom as vzd
+import numpy as np
+
 
 DEFAULT_CONFIG = "setting/settings.cfg"
+
 
 if __name__ == "__main__":
     parser = ArgumentParser("ViZDoom example showing how to use SPECTATOR mode.")

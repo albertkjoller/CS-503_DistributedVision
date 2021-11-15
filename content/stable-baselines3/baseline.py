@@ -134,7 +134,7 @@ def create_agent(env, **kwargs):
 
 # Configuration parameters
 config = {
-    "config_file_path": Path("../setting/my_way_home.cfg"),
+    "config_file_path": Path("../setting/settings.cfg"),
     "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
     "window_visible": True,
     "buttons": [
