@@ -1,5 +1,3 @@
-import time
-
 from pathlib import Path
 from typing import List, Tuple, Callable
 
@@ -56,10 +54,6 @@ class DistributedVisionEnv(gym.Env):
         Responsible for calling reset when the game is finished
         """
         reward = self.game.make_action(self.possible_actions[action], self.frame_skip)
-        # x = self.game.get_game_variable(vizdoom.GameVariable.POSITION_X)
-        # y = self.game.get_game_variable(vizdoom.GameVariable.POSITION_Y)
-        # print(f"Actor coordinate: {x, y}")
-        # time.sleep(0.5)
         done = self.game.is_episode_finished()
         self.state = self._get_frame(done)
 
@@ -108,12 +102,6 @@ def create_env(
     game.set_available_buttons(buttons)
     game.init()
 
-    other_buttons = [
-        vizdoom.Button.MOVE_FORWARD,
-        vizdoom.Button.TURN_LEFT,
-        vizdoom.Button.TURN_RIGHT
-    ]
-
     return DistributedVisionEnv(
         game,
         frame_processor,
@@ -144,8 +132,23 @@ def create_agent(env, **kwargs):
     )
 
 
+# Configuration parameters
+config = {
+    "config_file_path": Path("../setting/my_way_home.cfg"),
+    "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
+    "window_visible": True,
+    "buttons": [
+        vizdoom.Button.MOVE_FORWARD,
+        vizdoom.Button.TURN_LEFT,
+        vizdoom.Button.TURN_RIGHT
+    ],
+    "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+    "frame_skip": 4,
+}
+
+
 # Create training and evaluation environments.
-training_env, eval_env = create_vec_env(), create_vec_env(eval=True)
+training_env, eval_env = create_vec_env(**config), create_vec_env(eval=False, **config)
 
 # Create the agent
 agent = create_agent(training_env)
@@ -155,14 +158,14 @@ evaluation_callback = callbacks.EvalCallback(
     eval_env,
     n_eval_episodes=10,
     eval_freq=5000,
-    log_path='logs/evaluations/basic',
-    best_model_save_path='logs/models/basic'
+    log_path='logs/evaluations/ppo_baseline',
+    best_model_save_path='logs/models/ppo_baseline'
 )
 
 # Play!
 agent.learn(
     total_timesteps=40000,
-    tb_log_name='ppo_basic',
+    tb_log_name='ppo_baseline',
     callback=evaluation_callback
 )
 
