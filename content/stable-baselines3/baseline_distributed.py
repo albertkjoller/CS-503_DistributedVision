@@ -6,6 +6,7 @@ from threading import Thread
 
 import cv2 as cv2
 import gym as gym
+import matplotlib.pyplot as plt
 import numpy as np
 
 from vizdoom import vizdoom
@@ -35,13 +36,15 @@ class DistributedVisionEnv(gym.Env):
         self.frame_processor = frame_processor
         self.frame_skip = frame_skip
 
+        self.epsiode_number = 0
+
         self.map_x_boundaries = 160.0, 1120.0  # (min_x, max_x)
         self.map_y_boundaries = -704.0, 128.0  # (min_y, max_y)
         self.map_shape = (
             self.map_x_boundaries[1] - self.map_x_boundaries[0],
             self.map_y_boundaries[1] - self.map_y_boundaries[0]
         )
-        self.occupancy_map_shape = (32, 24)  # (width, height)
+        self.occupancy_map_shape = (36, 24)  # (width, height) (36, 24)
         self.reset_occupancy_map()
 
         # The actions that can be taken
@@ -129,13 +132,13 @@ class DistributedVisionEnv(gym.Env):
 
         # If we're trying to move forward and bump into a wall, negative reward
         # Should we just have a positive reward for velocity?
-        vx = game.get_game_variable(vizdoom.GameVariable.VELOCITY_X)
-        vy = game.get_game_variable(vizdoom.GameVariable.VELOCITY_Y)
-        velocity = np.sqrt(vx ** 2 + vy ** 2)
+        #vx = game.get_game_variable(vizdoom.GameVariable.VELOCITY_X)
+        #vy = game.get_game_variable(vizdoom.GameVariable.VELOCITY_Y)
+        #velocity = np.sqrt(vx ** 2 + vy ** 2)
 
         # TODO: Should make sure action[0] is move forward
-        if action[0] == 1 and velocity < 1:
-            agent_reward -= 0.001
+        #if action[0] == 1 and velocity < 1:
+        #    agent_reward -= 0.0005
 
         rewards[agent_id] = agent_reward
         is_done[agent_id] = game.is_episode_finished()
@@ -196,6 +199,14 @@ class DistributedVisionEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
+        plt.figure()
+        plt.title("Occupancy map")
+        plt.imshow(self.occupancy_map)
+        plt.savefig(f"../results/occ_map_episode_{self.epsiode_number}.jpg")
+        plt.close()
+
+        self.epsiode_number += 1
+
         self.reset_occupancy_map()
 
         threads = []
@@ -356,11 +367,12 @@ def create_env(
 
 def create_vec_env(eval: bool = False, **kwargs) -> VecTransposeImage:
     """"""
-    env = DummyVecEnv([lambda: create_env(**kwargs)])
+    vec_env = VecTransposeImage(DummyVecEnv([lambda: create_env(**kwargs)]))
+    
     if eval:
-        env = Monitor(env)
+        vec_env = Monitor(vec_env)
 
-    return VecTransposeImage(env)
+    return vec_env
 
 
 def create_agent(env, **kwargs):
@@ -391,7 +403,7 @@ base_config = {
     ],
     "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
     "num_players": 3,
-    "max_episode_length": 500,
+    "max_episode_length": 2000,
     "frame_skip": 4,
 }
 
@@ -404,7 +416,7 @@ config_eval["port"] = "5030"
 
 # Create training and evaluation environments.
 training_env = create_vec_env(**config_train)
-eval_env = create_vec_env(eval=True, **config_eval)
+eval_env = create_vec_env(eval=False, **config_eval)
 
 # Create the agent
 agent = create_agent(training_env)
