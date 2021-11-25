@@ -95,6 +95,17 @@ class DistributedVisionEnv(gym.Env):
 
     def _make_agent_action(self, agent_id, game, action: list, rewards: list, is_done: list):
         agent_reward = game.make_action(action, 1)  # Forced to 1 as with frame_skip above 1 network fails
+
+        # If we're trying to move forward and bump into a wall, negative reward
+        # Should we just have a positive reward for velocity?
+        vx = game.get_game_variable(vizdoom.GameVariable.VELOCITY_X)
+        vy = game.get_game_variable(vizdoom.GameVariable.VELOCITY_Y)
+        velocity = np.sqrt(vx ** 2 + vy ** 2)
+
+        # TODO: Should make sure action[0] is move forward
+        if action[0] == 1 and velocity < 1:
+            agent_reward -= 0.001
+
         rewards[agent_id] = agent_reward
         is_done[agent_id] = game.is_episode_finished()
 
@@ -365,14 +376,14 @@ evaluation_callback = callbacks.EvalCallback(
     eval_env,
     n_eval_episodes=10,
     eval_freq=5000,
-    log_path='logs/evaluations/ppo_baseline',
-    best_model_save_path='logs/models/ppo_baseline'
+    log_path='logs/evaluations/ppo_distributed_vision',
+    best_model_save_path='logs/models/ppo_distributed_vision'
 )
 
 # Play!
 agent.learn(
     total_timesteps=40000,
-    tb_log_name='ppo_baseline',
+    tb_log_name='ppo_distributed_vision',
     callback=evaluation_callback
 )
 
