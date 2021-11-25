@@ -21,9 +21,7 @@ class DistributedVisionEnv(gym.Env):
 
     def __init__(
         self,
-        game_1: vizdoom.DoomGame,
-        game_2: vizdoom.DoomGame,
-        game_3: vizdoom.DoomGame,
+        games: List[vizdoom.DoomGame],
         frame_processor: Callable,
         frame_skip: int
     ):
@@ -32,37 +30,34 @@ class DistributedVisionEnv(gym.Env):
 
         self.step_count = 0
 
-        self.game_1 = game_1
-        self.game_2 = game_2
-        self.game_3 = game_3
+        self.games = games
         self.frame_processor = frame_processor
         self.frame_skip = frame_skip
 
         # The actions that can be taken
         self._game_button_sizes = [
-            game_1.get_available_buttons_size(),
-            game_2.get_available_buttons_size(),
-            game_3.get_available_buttons_size(),
+            game.get_available_buttons_size()
+            for game in games
         ]
 
         # All combinations of actions possible
         self.action_space: Space = Discrete(sum(self._game_button_sizes))
         self.possible_actions: list[list[int]] = []
-        for agent_1_action in range(game_1.get_available_buttons_size()):
-            agent_1_space = self._game_button_sizes[0] * [0]
-            agent_1_space[agent_1_action] = 1
+        for agent_id in range(len(self.games)):
 
-            for agent_2_action in range(game_2.get_available_buttons_size()):
-                agent_2_space = self._game_button_sizes[1] * [0]
-                agent_2_space[agent_2_action] = 1
+            num_possible_actions = self._game_button_sizes[agent_id]
+            agent_actions = np.eye(num_possible_actions).tolist()
 
-                for agent_3_action in range(game_3.get_available_buttons_size()):
-                    agent_3_space = self._game_button_sizes[2] * [0]
-                    agent_3_space[agent_3_action] = 1
-
-                    self.possible_actions.append(
-                        agent_1_space + agent_2_space + agent_3_space
-                    )
+            if len(self.possible_actions) == 0:
+                self.possible_actions = agent_actions
+            else:
+                new_action_combinatations = []
+                for action in self.possible_actions:
+                    for new_agent_action in agent_actions:
+                        new_action_combinatations.append(
+                            action + new_agent_action
+                        )
+                self.possible_actions = new_action_combinatations
 
         print(f"  * Action Space Size: {sum(self._game_button_sizes)}")
         print(f"  * Possible Actions: {sum(self._game_button_sizes)}")
@@ -71,7 +66,7 @@ class DistributedVisionEnv(gym.Env):
 
         out_h, out_w = None, None
         out_channels = 0
-        for game in [game_1, game_2, game_3]:
+        for game in self.games:
             h, w, c = game.get_screen_height(), game.get_screen_width(), game.get_screen_channels()
             new_h, new_w, new_c = frame_processor(np.zeros((h, w, c))).shape
 
@@ -124,7 +119,7 @@ class DistributedVisionEnv(gym.Env):
         game_done = [False, False, False]
         threads = []
 
-        for i, game in enumerate([self.game_1, self.game_2, self.game_3]):
+        for i, game in enumerate(self.games):
             agent_action = agent_actions[i]
             thread = Thread(
                 target=self._make_agent_action,
@@ -157,7 +152,7 @@ class DistributedVisionEnv(gym.Env):
         """
         print("Resetting")
         threads = []
-        for game in [self.game_1, self.game_2, self.game_3]:
+        for game in self.games:
             thread = Thread(target=game.new_episode)
             thread.start()
             threads.append(thread)
@@ -171,7 +166,7 @@ class DistributedVisionEnv(gym.Env):
     def close(self) -> None:
         print("Closing")
         threads = []
-        for game in [self.game_1, self.game_2, self.game_3]:
+        for game in self.games:
             thread = Thread(target=game.close)
             thread.start()
             threads.append(thread)
@@ -187,7 +182,7 @@ class DistributedVisionEnv(gym.Env):
             return self.empty_frame
         
         game_states = []
-        for game in [self.game_1, self.game_2, self.game_3]:   
+        for game in self.games:   
             actor_state = game.get_state()
             if actor_state is None or actor_state.screen_buffer is None:
                 print("Found none state: had to return empty frame")
@@ -205,6 +200,7 @@ class DistributedVisionEnv(gym.Env):
 
 def add_player(
     game: vizdoom.DoomGame(),
+    port: str,
     num_players: int,
     player_id: int,
     host: bool,
@@ -226,6 +222,7 @@ def add_player(
     if host:
         game.add_game_args(
             f"-host {num_players}" +
+            f" -port {port}" +
             " -netmode 0" + 
             f" +timelimit {episode_length}" +
             " +sv_spawnfarthest 1" +
@@ -235,6 +232,7 @@ def add_player(
     else:
         game.add_game_args(
             "-join 127.0.0.1" +
+            f" -port {port}" +
             f" +name Player{player_id}" +
             f" +colorset {player_id}"
         )
@@ -247,16 +245,16 @@ def add_player(
 
 def create_env(
     config_file_path: Path = Path("../setting/settings.cfg"),
+    port: str = "5029",
     screen_resolution: vizdoom.ScreenResolution = vizdoom.ScreenResolution.RES_320X240,
     window_visible: bool = True,
     buttons: List[vizdoom.Button] = [vizdoom.Button.MOVE_LEFT, vizdoom.Button.MOVE_RIGHT, vizdoom.Button.ATTACK],
     frame_processor: Callable = lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+    num_players: int = 3,
+    max_episode_length: int = 500,
     frame_skip: int = 1
 ) -> gym.Env:
     """"""
-    num_players = 3
-    episode_length = 200
-
     aux_games = []
     threads = []
     for player_id in range(1, num_players):
@@ -265,10 +263,11 @@ def create_env(
             target=add_player,
             args=(
                 game,
+                port,
                 num_players,
                 player_id,
                 False,
-                episode_length,
+                max_episode_length,
             ),
             kwargs={
                 "config_file_path": config_file_path,
@@ -284,25 +283,22 @@ def create_env(
     host_game = vizdoom.DoomGame()
     add_player(
         host_game,
+        port,
         num_players,
         0,
         True,
-        episode_length,
+        max_episode_length,
         config_file_path=config_file_path,
         screen_resolution=screen_resolution,
         window_visible=window_visible,
         buttons=buttons
     )
 
-    sleep(1)
-
     for thread in threads:
         thread.join()
 
     return DistributedVisionEnv(
-        host_game,
-        aux_games[0],
-        aux_games[1],
+        [host_game, aux_games[0], aux_games[1]],
         frame_processor,
         frame_skip
     )
@@ -332,7 +328,8 @@ def create_agent(env, **kwargs):
 
 
 # Configuration parameters
-config = {
+base_config = {
+    "port": "5029",
     "config_file_path": Path("../setting/settings.cfg"),
     "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
     "window_visible": True,
@@ -342,19 +339,26 @@ config = {
         vizdoom.Button.TURN_RIGHT
     ],
     "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+    "num_players": 3,
+    "max_episode_length": 500,
     "frame_skip": 1,
 }
 
+config_train = base_config.copy()
+config_train["port"] = "5029"
+
+config_eval = base_config.copy()
+config_eval["port"] = "5030"
+
 
 # Create training and evaluation environments.
-training_env = create_vec_env(**config)
-# eval_env = create_vec_env(eval=False, **config)
+training_env = create_vec_env(**config_train)
+eval_env = create_vec_env(eval=False, **config_eval)
 
 # Create the agent
 agent = create_agent(training_env)
 
 # Define an evaluation callback that will save the model when a new reward record is reached.
-"""
 evaluation_callback = callbacks.EvalCallback(
     eval_env,
     n_eval_episodes=10,
@@ -362,13 +366,12 @@ evaluation_callback = callbacks.EvalCallback(
     log_path='logs/evaluations/ppo_baseline',
     best_model_save_path='logs/models/ppo_baseline'
 )
-"""
 
 # Play!
 agent.learn(
     total_timesteps=40000,
     tb_log_name='ppo_baseline',
-    #callback=evaluation_callback
+    callback=evaluation_callback
 )
 
 # To view logs, run in another directory:
@@ -376,4 +379,4 @@ agent.learn(
 # And go to http://localhost:6006/ in Firefox or Chrome
 
 training_env.close()
-#eval_env.close()
+eval_env.close()
