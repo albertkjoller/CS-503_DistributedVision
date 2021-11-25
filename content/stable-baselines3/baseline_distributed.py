@@ -16,6 +16,9 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
 
+# TODO: 1 vs 3 occupancy maps
+
+
 class DistributedVisionEnv(gym.Env):
     """ Environment used for the baseline """
 
@@ -28,10 +31,18 @@ class DistributedVisionEnv(gym.Env):
         super().__init__()
         print("Initializing DistributedVisionEnvironment")
         self.num_actors = len(games)
-
         self.games = games
         self.frame_processor = frame_processor
         self.frame_skip = frame_skip
+
+        self.map_x_boundaries = 160.0, 1120.0  # (min_x, max_x)
+        self.map_y_boundaries = -704.0, 128.0  # (min_y, max_y)
+        self.map_shape = (
+            self.map_x_boundaries[1] - self.map_x_boundaries[0],
+            self.map_y_boundaries[1] - self.map_y_boundaries[0]
+        )
+        self.occupancy_map_shape = (32, 24)  # (width, height)
+        self.reset_occupancy_map()
 
         # The actions that can be taken
         self._game_button_sizes = [
@@ -64,7 +75,7 @@ class DistributedVisionEnv(gym.Env):
             print(f"    - {action}")
 
         out_h, out_w = None, None
-        out_channels = 0
+        out_channels = 1  # start at 1 for occupancy map
         for game in self.games:
             h, w, c = game.get_screen_height(), game.get_screen_width(), game.get_screen_channels()
             new_h, new_w, new_c = frame_processor(np.zeros((h, w, c))).shape
@@ -93,8 +104,28 @@ class DistributedVisionEnv(gym.Env):
         # The current state of the game 
         self.state = self.empty_frame
 
+    def reset_occupancy_map(self):
+        """"""
+        self.occupancy_map = np.zeros(self.occupancy_map_shape, dtype=np.uint8)
+
+    def update_occupancy_map(self, game: vizdoom.DoomGame) -> np.ndarray:
+        pos_x = game.get_game_variable(vizdoom.GameVariable.POSITION_X)
+        pos_y = game.get_game_variable(vizdoom.GameVariable.POSITION_Y)
+
+        grid_x = min(
+            int(self.occupancy_map_shape[0] * ((pos_x - self.map_x_boundaries[0])/self.map_shape[0])),
+            self.occupancy_map_shape[0] - 1
+        )
+        grid_y = min(
+            int(self.occupancy_map_shape[1] * ((pos_y - self.map_y_boundaries[0])/self.map_shape[1])),
+            self.occupancy_map_shape[1] - 1
+        )
+
+        self.occupancy_map[grid_x, grid_y] = 255  # Max of np.unint8
+
     def _make_agent_action(self, agent_id, game, action: list, rewards: list, is_done: list):
         agent_reward = game.make_action(action, 1)  # Forced to 1 as with frame_skip above 1 network fails
+        self.update_occupancy_map(game)
 
         # If we're trying to move forward and bump into a wall, negative reward
         # Should we just have a positive reward for velocity?
@@ -165,6 +196,8 @@ class DistributedVisionEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
+        self.reset_occupancy_map()
+
         threads = []
         for game in self.games:
             thread = Thread(target=game.new_episode)
@@ -193,7 +226,7 @@ class DistributedVisionEnv(gym.Env):
     def _get_frame(self, done: bool = False) -> np.ndarray:
         if done:
             return self.empty_frame
-        
+
         game_states = []
         for game in self.games:   
             actor_state = game.get_state()
@@ -204,6 +237,10 @@ class DistributedVisionEnv(gym.Env):
             game_states.append(
                 self.frame_processor(actor_state.screen_buffer)
             )
+
+        game_states.append(
+            np.expand_dims(self.frame_processor(self.occupancy_map), 2)
+        )
         
         return np.concatenate(
             game_states,
@@ -319,10 +356,11 @@ def create_env(
 
 def create_vec_env(eval: bool = False, **kwargs) -> VecTransposeImage:
     """"""
-    vec_env = VecTransposeImage(DummyVecEnv([lambda: create_env(**kwargs)]))
+    env = DummyVecEnv([lambda: create_env(**kwargs)])
     if eval:
-        vec_env = Monitor(vec_env)
-    return vec_env
+        env = Monitor(env)
+
+    return VecTransposeImage(env)
 
 
 def create_agent(env, **kwargs):
@@ -366,7 +404,7 @@ config_eval["port"] = "5030"
 
 # Create training and evaluation environments.
 training_env = create_vec_env(**config_train)
-eval_env = create_vec_env(eval=False, **config_eval)
+eval_env = create_vec_env(eval=True, **config_eval)
 
 # Create the agent
 agent = create_agent(training_env)
