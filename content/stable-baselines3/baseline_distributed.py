@@ -27,8 +27,7 @@ class DistributedVisionEnv(gym.Env):
     ):
         super().__init__()
         print("Initializing DistributedVisionEnvironment")
-
-        self.step_count = 0
+        self.num_actors = len(games)
 
         self.games = games
         self.frame_processor = frame_processor
@@ -94,52 +93,57 @@ class DistributedVisionEnv(gym.Env):
         # The current state of the game 
         self.state = self.empty_frame
 
-    def _make_agent_action(self, step_count, agent_id, game, action: list, rewards: list, is_done: list):
-        agent_reward = game.make_action(action, self.frame_skip)
+    def _make_agent_action(self, agent_id, game, action: list, rewards: list, is_done: list):
+        agent_reward = game.make_action(action, 1)  # Forced to 1 as with frame_skip above 1 network fails
         rewards[agent_id] = agent_reward
         is_done[agent_id] = game.is_episode_finished()
-        #print(f"  * Step {step_count}: AGENT {agent_id} taking action {action}")
 
     def step(self, action: int) -> Tuple[Space, float, bool, dict]:
         """
         Responsible for calling reset when the game is finished
         """
-        self.step_count += 1
-
         action_combination = self.possible_actions[action]
         agent_start_index = 0
         agent_actions = []
-        for i in range(3):
+        for i in range(self.num_actors):
             agent_end_index = agent_start_index + self._game_button_sizes[i]
             agent_actions.append(action_combination[agent_start_index:agent_end_index])
             agent_start_index = agent_end_index
-        #print(f"Step {self.step_count} with actions {agent_actions}")
 
-        game_rewards = [0, 0, 0]
-        game_done = [False, False, False]
-        threads = []
+        frame_skip_rewards = []
+        frame_skip_done = []
+        for i in range(self.frame_skip):
+            step_rewards = self.num_actors * [0]
+            step_done = self.num_actors * [False]
+            threads = []
 
-        for i, game in enumerate(self.games):
-            agent_action = agent_actions[i]
-            thread = Thread(
-                target=self._make_agent_action,
-                args=(
-                    self.step_count,
-                    i,
-                    game,
-                    agent_action,
-                    game_rewards,
-                    game_done
-                ),
-            )
-            thread.start()
-            threads.append(thread)
+            for i, game in enumerate(self.games):
+                agent_action = agent_actions[i]
+                thread = Thread(
+                    target=self._make_agent_action,
+                    args=(
+                        i,
+                        game,
+                        agent_action,
+                        step_rewards,
+                        step_done
+                    ),
+                )
+                thread.start()
+                threads.append(thread)
 
-        for thread in threads:
-            thread.join()
+            for thread in threads:
+                thread.join()
 
-        reward = sum(game_rewards)
-        done = sum(game_done) > 0
+            frame_skip_rewards += step_rewards
+            frame_skip_done += step_done
+
+            # break if finished
+            if sum(step_done) > 0:
+                break
+
+        reward = sum(frame_skip_rewards)
+        done = sum(frame_skip_done) > 0
         self.state = self._get_frame(done)
         return self.state, reward, done, {}
 
@@ -150,7 +154,6 @@ class DistributedVisionEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
-        print("Resetting")
         threads = []
         for game in self.games:
             thread = Thread(target=game.new_episode)
@@ -164,7 +167,6 @@ class DistributedVisionEnv(gym.Env):
         return self.state
 
     def close(self) -> None:
-        print("Closing")
         threads = []
         for game in self.games:
             thread = Thread(target=game.close)
@@ -341,7 +343,7 @@ base_config = {
     "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
     "num_players": 3,
     "max_episode_length": 500,
-    "frame_skip": 1,
+    "frame_skip": 4,
 }
 
 config_train = base_config.copy()
