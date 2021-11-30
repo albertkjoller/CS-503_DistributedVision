@@ -1,3 +1,5 @@
+import argparse
+
 from os import read
 from pathlib import Path
 from time import sleep
@@ -27,7 +29,8 @@ class DistributedVisionEnv(gym.Env):
         self,
         games: List[vizdoom.DoomGame],
         frame_processor: Callable,
-        frame_skip: int
+        frame_skip: int,
+        save_occupancy_maps: bool,
     ):
         super().__init__()
         print("Initializing DistributedVisionEnvironment")
@@ -35,6 +38,7 @@ class DistributedVisionEnv(gym.Env):
         self.games = games
         self.frame_processor = frame_processor
         self.frame_skip = frame_skip
+        self.save_occupancy_maps = save_occupancy_maps
 
         self.epsiode_number = 0
 
@@ -199,11 +203,12 @@ class DistributedVisionEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
-        plt.figure()
-        plt.title("Occupancy map")
-        plt.imshow(self.occupancy_map)
-        plt.savefig(f"../results/occ_map_episode_{self.epsiode_number}.jpg")
-        plt.close()
+        if self.save_occupancy_maps:
+            plt.figure()
+            plt.title("Occupancy map")
+            plt.imshow(self.occupancy_map)
+            plt.savefig(f"../results/occ_map_episode_{self.epsiode_number}.jpg")
+            plt.close()
 
         self.epsiode_number += 1
 
@@ -313,7 +318,8 @@ def create_env(
     frame_processor: Callable = lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
     num_players: int = 3,
     max_episode_length: int = 500,
-    frame_skip: int = 1
+    frame_skip: int = 1,
+    save_occupancy_maps: bool = False
 ) -> gym.Env:
     """"""
     aux_games = []
@@ -361,7 +367,8 @@ def create_env(
     return DistributedVisionEnv(
         [host_game, aux_games[0], aux_games[1]],
         frame_processor,
-        frame_skip
+        frame_skip,
+        save_occupancy_maps,
     )
 
 
@@ -390,56 +397,84 @@ def create_agent(env, **kwargs):
     )
 
 
-# Configuration parameters
-base_config = {
-    "port": "5029",
-    "config_file_path": Path("../setting/settings.cfg"),
-    "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
-    "window_visible": True,
-    "buttons": [
-        vizdoom.Button.MOVE_FORWARD,
-        vizdoom.Button.TURN_LEFT,
-        vizdoom.Button.TURN_RIGHT
-    ],
-    "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
-    "num_players": 3,
-    "max_episode_length": 2000,
-    "frame_skip": 4,
-}
+def run(
+    save_occupancy_maps: bool,
+    window_visible: bool
+):
 
-config_train = base_config.copy()
-config_train["port"] = "5029"
+    # Configuration parameters
+    base_config = {
+        "config_file_path": Path("../setting/settings.cfg"),
+        "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
+        "window_visible": window_visible,
+        "buttons": [
+            vizdoom.Button.MOVE_FORWARD,
+            vizdoom.Button.TURN_LEFT,
+            vizdoom.Button.TURN_RIGHT
+        ],
+        "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+        "num_players": 3,
+        "max_episode_length": 2000,
+        "frame_skip": 4,
+        "save_occupancy_maps": save_occupancy_maps,
+    }
 
-config_eval = base_config.copy()
-config_eval["port"] = "5030"
+    config_train = base_config.copy()
+    config_train["port"] = "5029"
+
+    config_eval = base_config.copy()
+    config_eval["port"] = "5030"
 
 
-# Create training and evaluation environments.
-training_env = create_vec_env(**config_train)
-eval_env = create_vec_env(eval=False, **config_eval)
+    # Create training and evaluation environments.
+    training_env = create_vec_env(**config_train)
+    eval_env = create_vec_env(eval=False, **config_eval)
 
-# Create the agent
-agent = create_agent(training_env)
+    # Create the agent
+    agent = create_agent(training_env)
 
-# Define an evaluation callback that will save the model when a new reward record is reached.
-evaluation_callback = callbacks.EvalCallback(
-    eval_env,
-    n_eval_episodes=10,
-    eval_freq=5000,
-    log_path='logs/evaluations/ppo_distributed_vision',
-    best_model_save_path='logs/models/ppo_distributed_vision'
-)
+    # Define an evaluation callback that will save the model when a new reward record is reached.
+    evaluation_callback = callbacks.EvalCallback(
+        eval_env,
+        n_eval_episodes=10,
+        eval_freq=5000,
+        log_path='logs/evaluations/ppo_distributed_vision',
+        best_model_save_path='logs/models/ppo_distributed_vision'
+    )
 
-# Play!
-agent.learn(
-    total_timesteps=40000,
-    tb_log_name='ppo_distributed_vision',
-    callback=evaluation_callback
-)
+    # Play!
+    agent.learn(
+        total_timesteps=40000,
+        tb_log_name='ppo_distributed_vision',
+        callback=evaluation_callback
+    )
 
-# To view logs, run in another directory:
-#   tensorboard --logdir logs/tensorboard
-# And go to http://localhost:6006/ in Firefox or Chrome
+    # To view logs, run in another directory:
+    #   tensorboard --logdir logs/tensorboard
+    # And go to http://localhost:6006/ in Firefox or Chrome
 
-training_env.close()
-eval_env.close()
+    training_env.close()
+    eval_env.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Trains a distributed vision RL Agent in ViZDoom"
+    )
+
+    parser.add_argument(
+        "--save_occupancy_maps",
+        action="store_true",
+        help="Saves the occupancy maps for each episode"
+    )
+    parser.add_argument(
+        "--window_visible",
+        action="store_true",
+        help="Shows the video for each agent"
+    )
+
+    args = parser.parse_args()
+    run(
+        args.save_occupancy_maps,
+        args.window_visible,
+    )
