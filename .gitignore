@@ -1,4 +1,6 @@
 ViZDoom/**
 ViZDoom/examples/**
 content/_vizdoom.ini
+content/stable-baselines3/_vizdoom.ini
+content/stable-baselines3/logs
 content/stable-baselines3/stable_baselines3/**
