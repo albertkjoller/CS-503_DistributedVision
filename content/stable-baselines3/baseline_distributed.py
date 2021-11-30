@@ -399,7 +399,10 @@ def create_agent(env, **kwargs):
 
 def run(
     save_occupancy_maps: bool,
-    window_visible: bool
+    window_visible: bool,
+    total_timesteps: int,
+    n_eval_episodes: int,
+    eval_freq: int,
 ):
 
     # Configuration parameters
@@ -436,15 +439,15 @@ def run(
     # Define an evaluation callback that will save the model when a new reward record is reached.
     evaluation_callback = callbacks.EvalCallback(
         eval_env,
-        n_eval_episodes=10,
-        eval_freq=5000,
+        n_eval_episodes=n_eval_episodes,
+        eval_freq=eval_freq,
         log_path='logs/evaluations/ppo_distributed_vision',
         best_model_save_path='logs/models/ppo_distributed_vision'
     )
 
     # Play!
     agent.learn(
-        total_timesteps=40000,
+        total_timesteps=total_timesteps,
         tb_log_name='ppo_distributed_vision',
         callback=evaluation_callback
     )
@@ -472,9 +475,30 @@ if __name__ == "__main__":
         action="store_true",
         help="Shows the video for each agent"
     )
+    parser.add_argument(
+        "--timesteps",
+        type=int,
+        default=40000,
+        help="Total number of timesteps to train for"
+    )
+    parser.add_argument(
+        "--n_eval_episodes",
+        type=int,
+        default=10,
+        help="Total number of timesteps to train for"
+    )
+    parser.add_argument(
+        "--eval_freq",
+        type=int,
+        default=5000,
+        help="Total number of timesteps to train for"
+    )
 
     args = parser.parse_args()
     run(
         args.save_occupancy_maps,
         args.window_visible,
+        args.timesteps,
+        args.n_eval_episodes,
+        args.eval_freq,
     )
