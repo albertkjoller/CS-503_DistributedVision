@@ -1,5 +1,5 @@
 # DistViz - a Computer Vision based approach for Reinforcement Learning with Distributed Vision
-Object navigation by Reinforcement Learning agents using Distributed Vision. Done as a project in the course CS-503 - "Visual Intelligence: machines & minds" at EPFL (fall 2021). The project report is included in the repository.
+Object navigation by Reinforcement Learning agents using Distributed Vision. Done as a project in the course [CS-503 - "Visual Intelligence: machines & minds"](https://edu.epfl.ch/coursebook/fr/visual-intelligence-machines-and-minds-CS-503) at EPFL (fall 2021). The project report is included in the repository.
 
 ![image](https://user-images.githubusercontent.com/57899625/144043367-204499ab-c7dc-4ffe-9e8d-37db83b7d00b.png)
 
