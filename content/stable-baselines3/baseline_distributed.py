@@ -423,10 +423,10 @@ def run(
     }
 
     config_train = base_config.copy()
-    config_train["port"] = "5029"
+    config_train["port"] = "5030"
 
     config_eval = base_config.copy()
-    config_eval["port"] = "5030"
+    config_eval["port"] = "5031"
 
 
     # Create training and evaluation environments.
