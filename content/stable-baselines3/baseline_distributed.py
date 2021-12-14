@@ -387,11 +387,12 @@ def create_agent(env, **kwargs):
     return PPO(
         policy="CnnPolicy",
         env=env,
+        n_epochs=10,
         n_steps=4096,
         batch_size=32,
         learning_rate=1e-4,
         tensorboard_log='logs/tensorboard',
-        verbose=0,
+        verbose=1,
         seed=0,
         **kwargs
     )
@@ -478,7 +479,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--timesteps",
         type=int,
-        default=40000,
+        default=1000000,
         help="Total number of timesteps to train for"
     )
     parser.add_argument(
@@ -490,7 +491,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--eval_freq",
         type=int,
-        default=5000,
+        default=8192,
         help="Total number of timesteps to train for"
     )
 
