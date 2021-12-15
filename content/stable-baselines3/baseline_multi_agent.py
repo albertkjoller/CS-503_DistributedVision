@@ -171,7 +171,12 @@ def create_env(
     buttons: List[vizdoom.Button] = [vizdoom.Button.MOVE_LEFT, vizdoom.Button.MOVE_RIGHT, vizdoom.Button.ATTACK],
 ):
     game = vizdoom.DoomGame()
+
     game.load_config(str(config_file_path))
+
+    # IMPORTANT
+    game.set_seed(int(game_port) + 10 * player_id)
+
     game.set_window_visible(window_visible)
     game.set_mode(vizdoom.Mode.PLAYER)
     game.set_screen_format(vizdoom.ScreenFormat.RGB24)

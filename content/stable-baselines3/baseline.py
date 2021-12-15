@@ -13,7 +13,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
 
-class DistributedVisionEnv(gym.Env):
+class BaselineEnv(gym.Env):
     """ Environment used for the baseline """
 
     def __init__(
@@ -87,13 +87,18 @@ def create_env(
     config_file_path: Path = Path("../setting/settings.cfg"),
     screen_resolution: vizdoom.ScreenResolution = vizdoom.ScreenResolution.RES_320X240,
     window_visible: bool = True,
-    buttons: List[vizdoom.Button] = [vizdoom.Button.MOVE_LEFT, vizdoom.Button.MOVE_RIGHT, vizdoom.Button.ATTACK],
+    buttons: List[vizdoom.Button] = [vizdoom.Button.MOVE_FORWARD, vizdoom.Button.TURN_LEFT, vizdoom.Button.TURN_RIGHT],
     frame_processor: Callable = lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
     frame_skip: int = 4
 ) -> gym.Env:
     """"""
     game = vizdoom.DoomGame()
+
     game.load_config(str(config_file_path))
+
+    # IMPORTANT
+    game.set_seed(0)
+
     game.set_window_visible(window_visible)
     game.set_mode(vizdoom.Mode.PLAYER)
     game.set_screen_format(vizdoom.ScreenFormat.RGB24)
@@ -102,7 +107,7 @@ def create_env(
     game.set_available_buttons(buttons)
     game.init()
 
-    return DistributedVisionEnv(
+    return BaselineEnv(
         game,
         frame_processor,
         frame_skip
@@ -126,52 +131,54 @@ def create_agent(env, **kwargs):
         batch_size=32,
         learning_rate=1e-4,
         tensorboard_log='logs/tensorboard',
-        verbose=0,
+        verbose=1,
         seed=0,
         **kwargs
     )
 
 
-# Configuration parameters
-config = {
-    "config_file_path": Path("../setting/settings.cfg"),
-    "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
-    "window_visible": True,
-    "buttons": [
-        vizdoom.Button.MOVE_FORWARD,
-        vizdoom.Button.TURN_LEFT,
-        vizdoom.Button.TURN_RIGHT
-    ],
-    "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
-    "frame_skip": 4,
-}
+def run():
+
+    # Configuration parameters
+    config = {
+        "config_file_path": Path("../setting/settings.cfg"),
+        "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
+        "window_visible": True,
+        "buttons": [
+            vizdoom.Button.MOVE_FORWARD,
+            vizdoom.Button.TURN_LEFT,
+            vizdoom.Button.TURN_RIGHT
+        ],
+        "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+        "frame_skip": 1,
+    }
 
 
-# Create training and evaluation environments.
-training_env, eval_env = create_vec_env(**config), create_vec_env(eval=False, **config)
+    # Create training and evaluation environments.
+    training_env, eval_env = create_vec_env(**config), create_vec_env(eval=False, **config)
 
-# Create the agent
-agent = create_agent(training_env)
+    # Create the agent
+    agent = create_agent(training_env)
 
-# Define an evaluation callback that will save the model when a new reward record is reached.
-evaluation_callback = callbacks.EvalCallback(
-    eval_env,
-    n_eval_episodes=10,
-    eval_freq=5000,
-    log_path='logs/evaluations/ppo_baseline',
-    best_model_save_path='logs/models/ppo_baseline'
-)
+    # Define an evaluation callback that will save the model when a new reward record is reached.
+    evaluation_callback = callbacks.EvalCallback(
+        eval_env,
+        n_eval_episodes=10,
+        eval_freq=5000,
+        log_path='logs/evaluations/ppo_baseline',
+        best_model_save_path='logs/models/ppo_baseline'
+    )
 
-# Play!
-agent.learn(
-    total_timesteps=40000,
-    tb_log_name='ppo_baseline',
-    callback=evaluation_callback
-)
+    # Play!
+    agent.learn(
+        total_timesteps=40000,
+        tb_log_name='ppo_baseline',
+        callback=evaluation_callback
+    )
 
-# To view logs, run in another directory:
-#   tensorboard --logdir logs/tensorboard
-# And go to http://localhost:6006/ in Firefox or Chrome
+    # To view logs, run in another directory:
+    #   tensorboard --logdir logs/tensorboard
+    # And go to http://localhost:6006/ in Firefox or Chrome
 
-training_env.close()
-eval_env.close()
+    training_env.close()
+    eval_env.close()
