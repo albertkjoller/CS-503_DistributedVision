@@ -242,7 +242,7 @@ def run(
         tb_log_name='ppo_baseline',
         callback=evaluation_callback
     )
-    model.save('ppo_distributed_vision')
+    model.save('ppo_baseline')
 
     # To view logs, run in another directory:
     #   tensorboard --logdir logs/tensorboard
