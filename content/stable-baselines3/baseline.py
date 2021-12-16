@@ -28,6 +28,9 @@ class BaselineEnv(gym.Env):
         self.frame_processor = frame_processor
         self.frame_skip = frame_skip
 
+        print("Environment parameters:")
+        print(f"  * Frame skip: {self.frame_skip}")
+
         # Occupancy map
         self.map_x_boundaries = 160.0, 1120.0  # (min_x, max_x)
         self.map_y_boundaries = -704.0, 128.0  # (min_y, max_y)
@@ -86,13 +89,11 @@ class BaselineEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
-        print("Resetting")
         self.reset_occupancy_map()
         self.epsiode_number += 1
         self.game.set_seed(self.epsiode_number)
         self.game.new_episode()
         self.state = self._get_frame()
-        print("Done Resetting")
         return self.state
 
     def close(self) -> None:
@@ -216,7 +217,7 @@ def run(
             vizdoom.Button.TURN_RIGHT
         ],
         "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
-        "frame_skip": 1,
+        "frame_skip": 4,
     }
 
 
