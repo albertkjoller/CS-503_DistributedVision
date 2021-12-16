@@ -161,29 +161,8 @@ class DistributedVisionEnv(gym.Env):
 
     def restart_game(self):
         print("Restarting game due to timeout.")
-        sleep(1)
-        threads = []
-        for i, game in enumerate(self.games):
-            if game.is_running():
-                thread = Thread(target=game.close)
-                thread.start()
-                print(f"  Closing game {i}")
-                threads.append(thread)
-            else:
-                print(f"  Game {i} not running!")
-
-        sleep(1)
-        print(f"  {len(threads)} Games to Close!")
-        for i, thread in enumerate(threads):
-            thread.join(timeout=5.0)
-            print(f"  Game {i} Closed or Timed Out")
-
-            # Check if thread timed out
-            if thread.is_alive():
-                print("Thread timed out in restart_game method")
-                raise RuntimeError("Could not restart game after timeout")
-
-        sleep(5)
+        self.game_port += 1
+        print(f"Switching to port {self.game_port}")
         print("Recreating players")
         self.games = self.create_players()
     
@@ -227,7 +206,7 @@ class DistributedVisionEnv(gym.Env):
                 agent_action = agent_actions[i]
                 thread = Thread(
                     target=game.make_action,
-                    args=(agent_action, 4),
+                    args=(agent_action, 1),
                 )
                 thread.start()
                 threads.append(thread)
@@ -434,7 +413,7 @@ def run(
     config_train["base_seed"] = 0
 
     config_eval = base_config.copy()
-    config_eval["port"] = "5031"
+    config_eval["port"] = "5040"
     config_eval["base_seed"] = 100000
 
     # Create training and evaluation environments.
@@ -452,8 +431,8 @@ def run(
         eval_env,
         n_eval_episodes=n_eval_episodes,
         eval_freq=eval_freq,
-        log_path='logs/evaluations/ppo_distributed_vision',
-        best_model_save_path='logs/models/ppo_distributed_vision'
+        log_path='logs/evaluations/ppo_distributed_vision2',
+        best_model_save_path='logs/models/ppo_distributed_vision2'
     )
 
     # Play!
@@ -471,12 +450,12 @@ def run(
     """
     model = agent.learn(
         total_timesteps=total_timesteps,
-        tb_log_name='ppo_distributed_vision',
+        tb_log_name='ppo_distributed_vision2',
         #eval_env=eval_env,  # Don't know if I need to do this
         #eval_freq=total_timesteps,  # Don't know if I need to do this
         callback=evaluation_callback,
     )
-    model.save('logs/models/ppo_distributed_vision_final')
+    model.save('logs/models/ppo_distributed_vision2_final')
 
 
     # To view logs, run in another directory:
