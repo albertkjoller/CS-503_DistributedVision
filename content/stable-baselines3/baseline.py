@@ -86,11 +86,13 @@ class BaselineEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
+        print("Resetting")
         self.reset_occupancy_map()
         self.epsiode_number += 1
         self.game.set_seed(self.epsiode_number)
         self.game.new_episode()
         self.state = self._get_frame()
+        print("Done Resetting")
         return self.state
 
     def close(self) -> None:
