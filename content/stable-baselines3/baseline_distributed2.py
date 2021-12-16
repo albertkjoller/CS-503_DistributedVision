@@ -161,21 +161,29 @@ class DistributedVisionEnv(gym.Env):
 
     def restart_game(self):
         print("Restarting game due to timeout.")
-
+        sleep(1)
         threads = []
-        for game in self.games:
-            thread = Thread(target=game.close)
-            thread.start()
-            threads.append(thread)
+        for i, game in enumerate(self.games):
+            if game.is_running():
+                thread = Thread(target=game.close)
+                thread.start()
+                print(f"  Closing game {i}")
+                threads.append(thread)
+            else:
+                print(f"  Game {i} not running!")
 
-        for thread in threads:
+        sleep(1)
+        print(f"  {len(threads)} Games to Close!")
+        for i, thread in enumerate(threads):
             thread.join(timeout=5.0)
+            print(f"  Game {i} Closed or Timed Out")
 
             # Check if thread timed out
             if thread.is_alive():
                 print("Thread timed out in restart_game method")
                 raise RuntimeError("Could not restart game after timeout")
 
+        sleep(5)
         print("Recreating players")
         self.games = self.create_players()
     
@@ -198,22 +206,6 @@ class DistributedVisionEnv(gym.Env):
 
         self.occupancy_map[grid_x, grid_y] = 255  # Max of np.unint8
 
-    def _make_agent_action(self, agent_id, game, action: list, rewards: list, is_done: list):
-        agent_reward = game.make_action(action, 1)  # Forced to 1 as with frame_skip above 1 network fails
-        self.update_occupancy_map(game)
-
-        # If we're trying to move forward and bump into a wall, negative reward
-        # Should we just have a positive reward for velocity?
-        #vx = game.get_game_variable(vizdoom.GameVariable.VELOCITY_X)
-        #vy = game.get_game_variable(vizdoom.GameVariable.VELOCITY_Y)
-        #velocity = np.sqrt(vx ** 2 + vy ** 2)
-
-        # TODO: Should make sure action[0] is move forward
-        #if action[0] == 1 and velocity < 1:
-        #    agent_reward -= 0.0005
-        rewards[agent_id] = agent_reward
-        is_done[agent_id] = game.is_episode_finished()
-
     def step(self, action: int) -> Tuple[Space, float, bool, dict]:
         """
         Responsible for calling reset when the game is finished
@@ -235,7 +227,7 @@ class DistributedVisionEnv(gym.Env):
                 agent_action = agent_actions[i]
                 thread = Thread(
                     target=game.make_action,
-                    args=(agent_action, 1),
+                    args=(agent_action, 4),
                 )
                 thread.start()
                 threads.append(thread)
