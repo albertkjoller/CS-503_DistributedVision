@@ -175,7 +175,7 @@ class DistributedVisionEnv(gym.Env):
                 threads.append(thread)
 
             for thread in threads:
-                thread.join()
+                thread.join(timeout=2.0)
             
             frame_skip_rewards.append(self.games[0].get_last_reward())
             frame_skip_done.append(self.games[0].is_episode_finished())
