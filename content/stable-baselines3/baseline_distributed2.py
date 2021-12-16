@@ -310,7 +310,12 @@ class DistributedVisionEnv(gym.Env):
             threads.append(thread)
 
         for thread in threads:
-            thread.join()
+            thread.join(timeout=2.0)
+
+            # Check if thread timed out
+            if thread.is_alive():
+                print("Thread timed out in close method")
+                self.restart_game()
 
     def render(self, mode='human'):
         pass
