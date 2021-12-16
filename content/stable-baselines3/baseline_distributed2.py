@@ -479,7 +479,7 @@ def run(
         #eval_freq=total_timesteps,  # Don't know if I need to do this
         callback=evaluation_callback,
     )
-    model.save('ppo_distributed_vision')
+    model.save('logs/models/ppo_distributed_vision_final')
 
 
     # To view logs, run in another directory:
