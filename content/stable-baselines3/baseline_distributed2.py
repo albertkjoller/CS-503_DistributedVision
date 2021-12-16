@@ -289,7 +289,7 @@ class DistributedVisionEnv(gym.Env):
             threads.append(thread)
 
         for thread in threads:
-            thread.join()
+            thread.join(timeout=2.0)
 
             # Check if thread timed out
             if thread.is_alive():
