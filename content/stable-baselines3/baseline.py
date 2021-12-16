@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 from typing import List, Tuple, Callable
 
@@ -27,6 +28,16 @@ class BaselineEnv(gym.Env):
         self.frame_processor = frame_processor
         self.frame_skip = frame_skip
 
+        # Occupancy map
+        self.map_x_boundaries = 160.0, 1120.0  # (min_x, max_x)
+        self.map_y_boundaries = -704.0, 128.0  # (min_y, max_y)
+        self.map_shape = (
+            self.map_x_boundaries[1] - self.map_x_boundaries[0],
+            self.map_y_boundaries[1] - self.map_y_boundaries[0]
+        )
+        self.occupancy_map_shape = (36, 24)  # (width, height) (36, 24)
+        self.reset_occupancy_map()
+
         # The actions that can be taken
         self.action_space: Space = Discrete(game.get_available_buttons_size())
         self.possible_actions: list[list[int]] = np.eye(self.action_space.n).tolist()
@@ -39,7 +50,7 @@ class BaselineEnv(gym.Env):
         self.observation_space: Space = Box(
             low=0,
             high=255,
-            shape=(new_h, new_w, new_c),
+            shape=(new_h, new_w, new_c + 1),
             dtype=np.uint8
         )
 
@@ -49,15 +60,24 @@ class BaselineEnv(gym.Env):
         # The current state of the game 
         self.state = self.empty_frame
 
+        # The number of episodes that have been shown
+        self.epsiode_number = 0
+
     def step(self, action: int) -> Tuple[Space, float, bool, dict]:
         """
         Responsible for calling reset when the game is finished
         """
-        reward = self.game.make_action(self.possible_actions[action], self.frame_skip)
+        total_reward = 0
+        for _ in range(self.frame_skip):
+            # There is only one reward for the entire match, not one per agent
+            step_reward = self.game.make_action(self.possible_actions[action], 1)
+            total_reward += step_reward
+            if self.game.is_episode_finished():
+                break
+        
         done = self.game.is_episode_finished()
         self.state = self._get_frame(done)
-
-        return self.state, reward, done, {}
+        return self.state, total_reward, done, {}
 
     def reset(self) -> np.ndarray:
         """
@@ -66,6 +86,9 @@ class BaselineEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
+        self.reset_occupancy_map()
+        self.epsiode_number += 1
+        self.game.set_seed(self.epsiode_number)
         self.game.new_episode()
         self.state = self._get_frame()
         return self.state
@@ -77,10 +100,46 @@ class BaselineEnv(gym.Env):
         pass
 
     def _get_frame(self, done: bool = False) -> np.ndarray:
-        return (
-            self.frame_processor(self.game.get_state().screen_buffer)
-            if not done else self.empty_frame
+        if done:
+            return self.empty_frame
+
+        channels = []
+        
+        actor_state = self.game.get_state()
+        if actor_state is None or actor_state.screen_buffer is None:
+            print("Found none state: had to return empty frame")
+            return self.empty_frame
+        channels.append(
+            self.frame_processor(actor_state.screen_buffer)
         )
+
+        channels.append(
+            np.expand_dims(self.frame_processor(self.occupancy_map), 2)
+        )
+        
+        return np.concatenate(
+            channels,
+            axis=2
+        )
+    
+    def reset_occupancy_map(self):
+        """"""
+        self.occupancy_map = np.zeros(self.occupancy_map_shape, dtype=np.uint8)
+
+    def update_occupancy_map(self) -> np.ndarray:
+        pos_x = self.game.get_game_variable(vizdoom.GameVariable.POSITION_X)
+        pos_y = self.game.get_game_variable(vizdoom.GameVariable.POSITION_Y)
+
+        grid_x = min(
+            int(self.occupancy_map_shape[0] * ((pos_x - self.map_x_boundaries[0])/self.map_shape[0])),
+            self.occupancy_map_shape[0] - 1
+        )
+        grid_y = min(
+            int(self.occupancy_map_shape[1] * ((pos_y - self.map_y_boundaries[0])/self.map_shape[1])),
+            self.occupancy_map_shape[1] - 1
+        )
+
+        self.occupancy_map[grid_x, grid_y] = 255  # Max of np.unint8
 
 
 def create_env(
@@ -116,10 +175,10 @@ def create_env(
 
 def create_vec_env(eval: bool = False, **kwargs) -> VecTransposeImage:
     """"""
-    vec_env = VecTransposeImage(DummyVecEnv([lambda: create_env(**kwargs)]))
     if eval:
-        vec_env = Monitor(vec_env)
-    return vec_env
+        return VecTransposeImage(DummyVecEnv([lambda: Monitor(create_env(**kwargs))]))
+
+    return VecTransposeImage(DummyVecEnv([lambda: create_env(**kwargs)]))
 
 
 def create_agent(env, **kwargs):
@@ -137,13 +196,18 @@ def create_agent(env, **kwargs):
     )
 
 
-def run():
+def run(
+    window_visible: bool,
+    total_timesteps: int,
+    n_eval_episodes: int,
+    eval_freq: int,
+):
 
     # Configuration parameters
     config = {
         "config_file_path": Path("../setting/settings.cfg"),
         "screen_resolution": vizdoom.ScreenResolution.RES_320X240,
-        "window_visible": True,
+        "window_visible": window_visible,
         "buttons": [
             vizdoom.Button.MOVE_FORWARD,
             vizdoom.Button.TURN_LEFT,
@@ -155,7 +219,7 @@ def run():
 
 
     # Create training and evaluation environments.
-    training_env, eval_env = create_vec_env(**config), create_vec_env(eval=False, **config)
+    training_env, eval_env = create_vec_env(**config), create_vec_env(eval=True, **config)
 
     # Create the agent
     agent = create_agent(training_env)
@@ -163,18 +227,19 @@ def run():
     # Define an evaluation callback that will save the model when a new reward record is reached.
     evaluation_callback = callbacks.EvalCallback(
         eval_env,
-        n_eval_episodes=10,
-        eval_freq=5000,
+        n_eval_episodes=n_eval_episodes,
+        eval_freq=eval_freq,
         log_path='logs/evaluations/ppo_baseline',
         best_model_save_path='logs/models/ppo_baseline'
     )
 
     # Play!
-    agent.learn(
-        total_timesteps=40000,
+    model = agent.learn(
+        total_timesteps=total_timesteps,
         tb_log_name='ppo_baseline',
         callback=evaluation_callback
     )
+    model.save('ppo_distributed_vision')
 
     # To view logs, run in another directory:
     #   tensorboard --logdir logs/tensorboard
@@ -182,3 +247,52 @@ def run():
 
     training_env.close()
     eval_env.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Trains a distributed vision RL Agent in ViZDoom"
+    )
+
+    parser.add_argument(
+        "--save_occupancy_maps",
+        action="store_true",
+        help="Saves the occupancy maps for each episode"
+    )
+    parser.add_argument(
+        "--window_visible",
+        action="store_true",
+        help="Shows the video for each agent"
+    )
+    parser.add_argument(
+        "--timesteps",
+        type=int,
+        default=250000,
+        help="Total number of timesteps to train for"
+    )
+    parser.add_argument(
+        "--n_eval_episodes",
+        type=int,
+        default=10,
+        help="Number of episodes to evaluate on"
+    )
+    parser.add_argument(
+        "--eval_freq",
+        type=int,
+        default=4*4096,
+        help="Number of timesteps between evaluation"
+    )
+    parser.add_argument(
+        "--pretrained_model",
+        default=None,
+        help="If training should continue from a trained model, pass the path to the file here."
+    )
+
+    args = parser.parse_args()
+    run(
+        args.window_visible,
+        args.timesteps,
+        args.n_eval_episodes,
+        args.eval_freq,
+    )
+

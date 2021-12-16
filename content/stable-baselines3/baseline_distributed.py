@@ -3,7 +3,7 @@ import argparse
 from os import read
 from pathlib import Path
 from time import sleep
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Optional
 from threading import Thread
 
 import cv2 as cv2
@@ -402,6 +402,7 @@ def run(
     total_timesteps: int,
     n_eval_episodes: int,
     eval_freq: int,
+    pretrained_model: Optional[str],
 ):
 
     np.random.seed(0)
@@ -437,6 +438,9 @@ def run(
 
     # Create the agent
     agent = create_agent(training_env)
+    if pretrained_model is not None:
+        print(f"Loading pretrained model from {pretrained_model}")
+        agent.load(pretrained_model)
 
     # Define an evaluation callback that will save the model when a new reward record is reached.
     evaluation_callback = callbacks.EvalCallback(
@@ -511,6 +515,11 @@ if __name__ == "__main__":
         default=4*4096,
         help="Number of timesteps between evaluation"
     )
+    parser.add_argument(
+        "--pretrained_model",
+        default=None,
+        help="If training should continue from a trained model, pass the path to the file here."
+    )
 
     args = parser.parse_args()
     run(
@@ -519,4 +528,5 @@ if __name__ == "__main__":
         args.timesteps,
         args.n_eval_episodes,
         args.eval_freq,
+        args.pretrained_model,
     )
