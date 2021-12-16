@@ -151,6 +151,7 @@ def create_env(
     window_visible: bool = True,
     buttons: List[vizdoom.Button] = [vizdoom.Button.MOVE_FORWARD, vizdoom.Button.TURN_LEFT, vizdoom.Button.TURN_RIGHT],
     frame_processor: Callable = lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+    max_episode_length: int = 2000,
     frame_skip: int = 4
 ) -> gym.Env:
     """"""
@@ -167,7 +168,13 @@ def create_env(
     game.set_screen_resolution(screen_resolution)
     game.set_labels_buffer_enabled(False)  # What is labels
     game.set_available_buttons(buttons)
+    game.set_episode_timeout(max_episode_length)
     game.init()
+
+    print("Set up game:")
+    print(f"  * Max episode length: {max_episode_length}")
+    print(f"  * Buttons:            {buttons}")
+    print(f"  * Screen Resolution:  {screen_resolution}")
 
     return BaselineEnv(
         game,
@@ -217,6 +224,7 @@ def run(
             vizdoom.Button.TURN_RIGHT
         ],
         "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+        "max_episode_length": 2000,
         "frame_skip": 4,
     }
 

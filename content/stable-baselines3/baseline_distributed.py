@@ -283,6 +283,11 @@ def add_player(
     game.set_available_buttons(buttons)
     game.set_episode_timeout(episode_length)
 
+    print("Set up game:")
+    print(f"  * Max episode length: {episode_length}")
+    print(f"  * Buttons:            {buttons}")
+    print(f"  * Screen Resolution:  {screen_resolution}")
+
     if host:
         game.add_game_args(
             f"-host {num_players}" +
