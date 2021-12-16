@@ -195,7 +195,6 @@ class DistributedVisionEnv(gym.Env):
         Returns:
             The initial state of the new environment.
         """
-        print("Resetting")
         if self.save_occupancy_maps:
             plt.figure()
             plt.title("Occupancy map")
@@ -219,7 +218,6 @@ class DistributedVisionEnv(gym.Env):
             game.set_seed(self.random_base_seed + 1000 * player_id + self.epsiode_number)
 
         self.state = self._get_frame()
-        print("Done Resetting")
         return self.state
 
     def close(self) -> None:
