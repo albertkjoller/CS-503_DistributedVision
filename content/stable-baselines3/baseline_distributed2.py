@@ -161,8 +161,13 @@ class DistributedVisionEnv(gym.Env):
 
     def restart_game(self):
         print("Restarting game due to timeout.")
-        self.game_port += 1
-        print(f"Switching to port {self.game_port}")
+        print("Closing host game")
+        host_game = self.games[0]
+        print(f"  {self.games[0].is_running()}")
+        if host_game.is_running():
+            host_game.close()
+        sleep(2)
+        del self.games
         print("Recreating players")
         self.games = self.create_players()
     
@@ -267,9 +272,6 @@ class DistributedVisionEnv(gym.Env):
                 print("Thread timed out in reset method")
                 self.restart_game()
         
-        for player_id, game in enumerate(self.games):
-            game.set_seed(self.random_base_seed + 1000 * player_id + self.epsiode_number)
-
         self.state = self._get_frame()
         return self.state
 
