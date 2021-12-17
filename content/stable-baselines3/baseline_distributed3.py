@@ -197,9 +197,10 @@ class DistributedVisionEnvironment(gym.Env):
             # Wait for results
             frame_reward = 0
             agent_states = []
-            for agent_pipe in self.pipes:
-                #if not agent_pipe.poll(timeout=2.0):
-                #    raise RuntimeError("Network out of sync")
+            for agent_id, agent_pipe in enumerate(self.pipes):
+                print(f"Network out of sync in step(), blocked on {agent_id}. Restarting all.")
+                self.restart_all_actors()
+                return self.state
 
                 agent_reward, agent_state, agent_position, agent_done = agent_pipe.recv()
                 frame_reward = agent_reward  # All agent rewards are the same
@@ -222,9 +223,11 @@ class DistributedVisionEnvironment(gym.Env):
                     None,
                 ))
 
-        for agent_pipe in self.pipes:
-            #if not agent_pipe.poll(timeout=2.0):
-            #    raise RuntimeError("Network out of sync")
+        for agent_id, agent_pipe in enumerate(self.pipes):
+            if not agent_pipe.poll(timeout=2.0):
+                print(f"Network out of sync in reset(), blocked on {agent_id}. Restarting all.")
+                self.restart_all_actors()
+                return self.state
             
             _ = agent_pipe.recv()
         
@@ -242,6 +245,13 @@ class DistributedVisionEnvironment(gym.Env):
         for agent_pipe in self.pipes:
             _ = agent_pipe.recv()
         print("  -> Closed")
+
+    def restart_all_actors(self):
+        for agent_process in self.agent_processes:
+            agent_process.terminate()
+
+        self.initialize_agents()
+        self.reset()
 
     def _update_state(self, done: bool, agent_states: List[np.ndarray]) -> None:
         if done:
@@ -287,7 +297,7 @@ class DistributedVisionEnvironment(gym.Env):
             process.start()
 
         # Wait for agents to connect
-        sleep(10)
+        sleep(5)
 
     def initialize_occupancy_map(self):
         self.map_x_boundaries = 160.0, 1120.0  # (min_x, max_x)
