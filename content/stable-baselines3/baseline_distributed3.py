@@ -198,9 +198,10 @@ class DistributedVisionEnvironment(gym.Env):
             frame_reward = 0
             agent_states = []
             for agent_id, agent_pipe in enumerate(self.pipes):
-                print(f"Network out of sync in step(), blocked on {agent_id}. Restarting all.")
-                self.restart_all_actors()
-                return self.state
+                if not agent_pipe.poll(timeout=2.0): 
+                    print(f"Network out of sync in step(), blocked on {agent_id}. Restarting all.")
+                    self.restart_all_actors()
+                    return self.state, 0, True, {}
 
                 agent_reward, agent_state, agent_position, agent_done = agent_pipe.recv()
                 frame_reward = agent_reward  # All agent rewards are the same
@@ -250,6 +251,7 @@ class DistributedVisionEnvironment(gym.Env):
         for agent_process in self.agent_processes:
             agent_process.terminate()
 
+        sleep(5)
         self.initialize_agents()
         self.reset()
 
