@@ -18,6 +18,8 @@ from stable_baselines3.common import callbacks
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
+from baseline_distributed_custom_feature_extractor import SiameseResNetCNN
+
 
 # TODO: 1 vs 3 occupancy maps
 
@@ -376,6 +378,7 @@ def create_agent(env, **kwargs):
         batch_size=32,
         learning_rate=1e-4,
         tensorboard_log='logs/tensorboard',
+        # policy_kwargs={'features_extractor_class': SiameseResNetCNN},
         verbose=1,
         seed=0,
         **kwargs

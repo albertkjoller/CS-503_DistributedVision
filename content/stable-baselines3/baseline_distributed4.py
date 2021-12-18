@@ -20,6 +20,8 @@ from stable_baselines3.common import callbacks
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
+from baseline_distributed_custom_feature_extractor import SiameseResNetCNN
+
 
 class EnvironmentAction(Enum):
     TAKE_STEP = 0
@@ -407,12 +409,14 @@ def create_agent(env, **kwargs):
         policy="CnnPolicy",
         env=env,
         n_epochs=10,
-        n_steps=4096,
+        n_steps=1024,
         batch_size=32,
         learning_rate=1e-4,
         tensorboard_log='logs/tensorboard',
+        policy_kwargs={'features_extractor_class': SiameseResNetCNN},
         verbose=1,
         seed=0,
+        
         **kwargs
     )
 
@@ -445,11 +449,9 @@ def run(
 
     config_train = base_config.copy()
     config_train["port"] = "5030"
-    #config_train["base_seed"] = 0
 
     config_eval = base_config.copy()
-    config_eval["port"] = "5050"
-    #config_eval["base_seed"] = 100000
+    config_eval["port"] = "5080"
 
     # Create training and evaluation environments.
     training_env = create_vec_env(**config_train)
