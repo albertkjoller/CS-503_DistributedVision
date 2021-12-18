@@ -1,11 +1,50 @@
 from typing import Tuple
 
 import gym
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.models as models
 
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from gym.spaces import Space, Box
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor, NatureCNN
+
+
+class SiameseCNN(BaseFeaturesExtractor):
+    def __init__(
+        self,
+        observation_space: gym.spaces.Box,
+        actor_features_dim: int = 128,  # feature dimension will be 3 times that
+        image_shape: Tuple[int, int] = (160, 120),
+        **kwargs
+    ):
+        super().__init__(observation_space, 3 * actor_features_dim)
+        self.actor_observation_space: Space = Box(
+            low=0,
+            high=255,
+            shape=(image_shape[1], image_shape[0], 4),
+            dtype=np.uint8
+        )
+
+        self.cnn = NatureCNN(observation_space, actor_features_dim)
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        actor1_encoding = self._process_actor_image(observations, 0, 3)
+        actor2_encoding = self._process_actor_image(observations, 3, 6)
+        actor3_encoding = self._process_actor_image(observations, 6, 9)
+
+        image_encoding = torch.cat(
+            [actor1_encoding, actor2_encoding, actor3_encoding],
+            dim=1
+        )
+        return image_encoding
+
+    def _process_actor_image(self, observations, start_index, end_index) -> torch.Tensor:
+        actor_image = observations[:, start_index:end_index, :, :]
+        occupancy_map = observations[:, -1:, :, :]
+        actor_input = torch.cat([actor_image, occupancy_map], dim=1)
+        actor_features = self.cnn(actor_input).reshape(observations.shape[0], -1)
+        return actor_features
 
 
 class SiameseResNetCNN(BaseFeaturesExtractor):
