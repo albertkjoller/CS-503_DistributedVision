@@ -468,8 +468,8 @@ def run(
         eval_env,
         n_eval_episodes=n_eval_episodes,
         eval_freq=eval_freq,
-        log_path='logs/evaluations/ppo_distributed_vision3',
-        best_model_save_path='logs/models/ppo_distributed_vision3'
+        log_path='logs/evaluations/ppo_distributed_vision_resnet',
+        best_model_save_path='logs/models/ppo_distributed_vision_resnet'
     )
 
     # Play!
@@ -487,12 +487,12 @@ def run(
     """
     model = agent.learn(
         total_timesteps=total_timesteps,
-        tb_log_name='ppo_distributed_vision3',
+        tb_log_name='ppo_distributed_vision_resnet',
         #eval_env=eval_env,  # Don't know if I need to do this
         #eval_freq=total_timesteps,  # Don't know if I need to do this
         callback=evaluation_callback,
     )
-    model.save('logs/models/ppo_distributed_vision3_final')
+    model.save('logs/models/ppo_distributed_vision_resnet_final')
 
 
     # To view logs, run in another directory:
