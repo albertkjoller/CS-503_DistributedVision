@@ -409,7 +409,7 @@ def create_agent(env, **kwargs):
         policy="CnnPolicy",
         env=env,
         n_epochs=10,
-        n_steps=1024,
+        n_steps=4096,
         batch_size=32,
         learning_rate=1e-4,
         tensorboard_log='logs/tensorboard',
