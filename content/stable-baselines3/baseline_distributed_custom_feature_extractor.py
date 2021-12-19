@@ -26,7 +26,7 @@ class SiameseCNN(BaseFeaturesExtractor):
             dtype=np.uint8
         )
 
-        self.cnn = NatureCNN(observation_space, actor_features_dim)
+        self.cnn = NatureCNN(self.actor_observation_space, actor_features_dim)
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         actor1_encoding = self._process_actor_image(observations, 0, 3)
