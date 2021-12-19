@@ -312,9 +312,6 @@ def evaluate(
         for player_rewards_and_steps in rewards_and_steps
     ]
 
-    # Check all rewards match
-    assert rewards[0] == rewards[1] == rewards[2]
-
     rewards = rewards[0]
     steps_ = []
     for episode_num in range(num_episodes):

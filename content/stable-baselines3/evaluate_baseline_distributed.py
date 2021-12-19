@@ -24,7 +24,7 @@ from baseline_distributed_custom_feature_extractor import SiameseCNN, SiameseRes
 
 
 # python stable-baselines3/evaluate_baseline_distributed.py results/logs/final_models/ppo_distributed_vision3_azure_3m/ppo_distributed_vision3_final --window_visible
-
+# python stable-baselines3/evaluate_baseline_distributed.py results/logs/final_models/ppo_distributed_vision2_1/ppo_distributed_vision2_final --window_visible
 
 def frame_processor(frame):
     return cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA)
