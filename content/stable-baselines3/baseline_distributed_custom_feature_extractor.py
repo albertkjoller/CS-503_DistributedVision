@@ -22,7 +22,7 @@ class SiameseCNN(BaseFeaturesExtractor):
         self.actor_observation_space: Space = Box(
             low=0,
             high=255,
-            shape=(image_shape[1], image_shape[0], 4),
+            shape=(4, image_shape[0], image_shape[1]),
             dtype=np.uint8
         )
 

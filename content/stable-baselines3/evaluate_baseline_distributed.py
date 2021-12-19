@@ -5,7 +5,7 @@ from os import read
 from pathlib import Path
 from time import sleep
 from typing import Any, List, Tuple, Callable, Optional
-from multiprocessing import Process, Pipe
+from multiprocessing import cpu_count, Process, Pipe
 
 import cv2 as cv2
 import gym as gym
@@ -21,6 +21,13 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
 from baseline_distributed_custom_feature_extractor import SiameseCNN, SiameseResNetCNN
+
+
+# python stable-baselines3/evaluate_baseline_distributed.py results/logs/final_models/ppo_distributed_vision3_azure_3m/ppo_distributed_vision3_final --window_visible
+
+
+def frame_processor(frame):
+    return cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA)
 
 
 class EnvironmentAction(Enum):
@@ -43,7 +50,8 @@ class DistributedAgent:
         player_id: int,
         num_players: int,
         game_port: int,
-        game_creator: Callable[[int], vzd.DoomGame],
+        game_creator: Callable,
+        game_creator_kwargs: dict,
         max_episode_length: int,
         communication_pipe,
     ):
@@ -51,6 +59,7 @@ class DistributedAgent:
         self.num_players = num_players
         self.game_port = game_port
         self.game_creator = game_creator
+        self.game_creator_kwargs = game_creator_kwargs
         self.max_episode_length = max_episode_length
         self.communication_pipe = communication_pipe
 
@@ -61,7 +70,7 @@ class DistributedAgent:
         return self.player_id == 0
 
     def initialize_player(self):
-        self.game = self.game_creator(self.player_id)
+        self.game = self.game_creator(self.player_id, **self.game_creator_kwargs)
 
         if self.is_host():
             self.game.add_game_args(
@@ -145,6 +154,7 @@ class DistributedVisionEnvironment(gym.Env):
         num_players: int,
         game_port: int,
         game_creator: Callable[[int], vzd.DoomGame],
+        game_creator_kwargs: dict,
         frame_processor: Callable,
         frame_skip: int,
         max_episode_length: int,
@@ -152,6 +162,7 @@ class DistributedVisionEnvironment(gym.Env):
         self.num_players = num_players
         self.game_port = game_port
         self.game_creator = game_creator
+        self.game_creator_kwargs = game_creator_kwargs
         self.frame_processor = frame_processor
         self.frame_skip = frame_skip
         self.max_episode_length = max_episode_length
@@ -207,7 +218,7 @@ class DistributedVisionEnvironment(gym.Env):
             frame_reward = 0
             agent_states = []
             for agent_id, agent_pipe in enumerate(self.pipes):
-                if not agent_pipe.poll(timeout=2.0): 
+                if not agent_pipe.poll(timeout=4.0): 
                     print(f"Network out of sync in step(), blocked on {agent_id}. Restarting all.")
                     self.restart_all_actors()
                     return self.state, 0, True, {}
@@ -237,7 +248,7 @@ class DistributedVisionEnvironment(gym.Env):
                 ))
 
         for agent_id, agent_pipe in enumerate(self.pipes):
-            if not agent_pipe.poll(timeout=2.0):
+            if not agent_pipe.poll(timeout=4.0):
                 print(f"Network out of sync in reset(), blocked on {agent_id}. Restarting all.")
                 self.restart_all_actors()
                 return self.state
@@ -248,7 +259,6 @@ class DistributedVisionEnvironment(gym.Env):
         return self.state
 
     def close(self):
-        print("Closing")
         for agent_pipe in self.pipes:
             agent_pipe.send((
                     EnvironmentAction.CLOSE,
@@ -257,7 +267,6 @@ class DistributedVisionEnvironment(gym.Env):
 
         for agent_pipe in self.pipes:
             _ = agent_pipe.recv()
-        print("  -> Closed")
 
     def restart_all_actors(self):
         for agent_process in self.agent_processes:
@@ -296,6 +305,7 @@ class DistributedVisionEnvironment(gym.Env):
                 self.num_players,
                 self.game_port,
                 self.game_creator,
+                self.game_creator_kwargs,
                 self.max_episode_length,
                 child_pipes[player_id],
             )
@@ -359,36 +369,55 @@ class DistributedVisionEnvironment(gym.Env):
         return possible_actions
 
 
+def game_creator(
+    player_id: int,
+    config_file_path=None,
+    window_visible=None,
+    port=None,
+    screen_resolution=None,
+    buttons=None,
+    max_episode_length=None,
+) -> vzd.DoomGame:
+    game = vzd.DoomGame()
+    game.load_config(str(config_file_path))
+    game.set_seed(int(port) + 1000 * player_id)
+    game.set_window_visible(window_visible)
+    game.set_mode(vzd.Mode.PLAYER)
+    game.set_screen_format(vzd.ScreenFormat.RGB24)
+    game.set_screen_resolution(screen_resolution)
+    game.set_labels_buffer_enabled(False)  # What is labels
+    game.set_available_buttons(buttons)
+    game.set_episode_timeout(max_episode_length)
+    return game
+
+
 def create_env(
     config_file_path: Path = Path("../setting/settings.cfg"),
     port: str = "5029",
     screen_resolution: vzd.ScreenResolution = vzd.ScreenResolution.RES_320X240,
     window_visible: bool = True,
     buttons: List[vzd.Button] = [vzd.Button.MOVE_LEFT, vzd.Button.MOVE_RIGHT, vzd.Button.ATTACK],
-    frame_processor: Callable = lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+    frame_processor: Callable = frame_processor,
     num_players: int = 3,
     max_episode_length: int = 500,
     frame_skip: int = 1,
 ) -> gym.Env:
     """"""
 
-    def game_creator(player_id: int) -> vzd.DoomGame:
-        game = vzd.DoomGame()
-        game.load_config(str(config_file_path))
-        game.set_seed(int(port) + 1000 * player_id)
-        game.set_window_visible(window_visible)
-        game.set_mode(vzd.Mode.PLAYER)
-        game.set_screen_format(vzd.ScreenFormat.RGB24)
-        game.set_screen_resolution(screen_resolution)
-        game.set_labels_buffer_enabled(False)  # What is labels
-        game.set_available_buttons(buttons)
-        game.set_episode_timeout(max_episode_length)
-        return game
+    game_creator_kwargs = {
+        "config_file_path": config_file_path,
+        "port": port,
+        "window_visible": window_visible,
+        "screen_resolution": screen_resolution,
+        "buttons": buttons,
+        "max_episode_length": max_episode_length,
+    }
 
     return DistributedVisionEnvironment(
         num_players,
         int(port),
         game_creator,
+        game_creator_kwargs,
         frame_processor,
         frame_skip,
         max_episode_length,
@@ -420,14 +449,12 @@ def create_agent(env, **kwargs):
     )
 
 
-def run(
+def evaluate(
+    model_path: str,
+    num_epsisodes: int,
     window_visible: bool,
-    total_timesteps: int,
-    n_eval_episodes: int,
-    eval_freq: int,
-    pretrained_model: Optional[str],
+    save_occupancy_maps: bool,
 ):
-
     np.random.seed(0)
 
     # Configuration parameters
@@ -440,66 +467,61 @@ def run(
             vzd.Button.TURN_LEFT,
             vzd.Button.TURN_RIGHT
         ],
-        "frame_processor": lambda frame: cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA),
+        "frame_processor": frame_processor,
         "num_players": 3,
         "max_episode_length": 2000,
         "frame_skip": 4,
     }
 
-    config_train = base_config.copy()
-    config_train["port"] = "5030"
+    # Set the port
+    base_config["port"] = "5090"
 
-    config_eval = base_config.copy()
-    config_eval["port"] = "5080"
+    # Create the environment and model
+    env = create_env(**base_config)
+    model = PPO.load(model_path)
 
-    # Create training and evaluation environments.
-    training_env = create_vec_env(**config_train)
-    eval_env = create_vec_env(eval=True, **config_eval)
+    # Evaluate
+    rewards = []
+    steps = []
+    for episode_num in range(num_epsisodes):
+        obs = env.reset()
+        
+        episode_steps = 0
+        episode_reward = 0
+        episode_done = False
+        while not episode_done:
+            episode_steps += 1
 
-    # Create the agent
-    agent = create_agent(training_env)
-    if pretrained_model is not None:
-        print(f"Loading pretrained model from {pretrained_model}")
-        agent.load(pretrained_model)
+            action, _ = model.predict(obs)
+            obs, reward, done, _ = env.step(action)
 
-    # Define an evaluation callback that will save the model when a new reward record is reached.
-    evaluation_callback = callbacks.EvalCallback(
-        eval_env,
-        n_eval_episodes=n_eval_episodes,
-        eval_freq=eval_freq,
-        log_path='logs/evaluations/ppo_distributed_vision_resnet',
-        best_model_save_path='logs/models/ppo_distributed_vision_resnet'
-    )
+            episode_reward += reward
+            episode_done = done
 
-    # Play!
-    """
-    :param total_timesteps: The total number of samples (env steps) to train on
-    :param callback: callback(s) called at every step with state of the algorithm.
-    :param log_interval: The number of timesteps before logging.
-    :param tb_log_name: the name of the run for TensorBoard logging
-    :param eval_env: Environment that will be used to evaluate the agent
-    :param eval_freq: Evaluate the agent every eval_freq timesteps (this may vary a little)
-    :param n_eval_episodes: Number of episode to evaluate the agent
-    :param eval_log_path: Path to a folder where the evaluations will be saved
-    :param reset_num_timesteps: whether or not to reset the current timestep number (used in logging)
-    :return: the trained model
-    """
-    model = agent.learn(
-        total_timesteps=total_timesteps,
-        tb_log_name='ppo_distributed_vision_resnet',
-        #eval_env=eval_env,  # Don't know if I need to do this
-        #eval_freq=total_timesteps,  # Don't know if I need to do this
-        callback=evaluation_callback,
-    )
-    model.save('logs/models/ppo_distributed_vision_resnet_final')
+        rewards.append(episode_reward)
+        steps.append(episode_steps)
 
+        print()
+        print(f"Done with episode {episode_num}!")
+        print(f"  Reward: {episode_reward}")
+        print(f"  Steps:  {episode_steps}")
+        print()
 
-    # To view logs, run in another directory:
-    #   tensorboard --logdir logs/tensorboard
-    # And go to http://localhost:6006/ in Firefox or Chrome
+    print(f"\n\n\n{50 * '-'}\n")
+    print("Done Evaluating")
 
-    training_env.close()
-    eval_env.close()
+    print(f"\nRewards: {rewards}")
+    print(f"Steps:   {steps}")
+
+    print("\nMean:")
+    print(f"  Rewards: {np.mean(rewards)}")
+    print(f"  Steps:   {np.mean(steps)}")
+
+    print("\nStandard Deviation:")
+    print(f"  Rewards: {np.std(rewards)}")
+    print(f"  Steps:   {np.std(steps)}")
+
+    env.close()
 
 
 if __name__ == "__main__":
@@ -508,9 +530,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--save_occupancy_maps",
-        action="store_true",
-        help="Saves the occupancy maps for each episode"
+        "model_path",
+        default="",
+
+    )
+    parser.add_argument(
+        "--n_episodes",
+        type=int,
+        default=100,
+        help="Number of episodes to evaluate on"
     )
     parser.add_argument(
         "--window_visible",
@@ -518,34 +546,15 @@ if __name__ == "__main__":
         help="Shows the video for each agent"
     )
     parser.add_argument(
-        "--timesteps",
-        type=int,
-        default=10000,
-        help="Total number of timesteps to train for"
-    )
-    parser.add_argument(
-        "--n_eval_episodes",
-        type=int,
-        default=10,
-        help="Number of episodes to evaluate on"
-    )
-    parser.add_argument(
-        "--eval_freq",
-        type=int,
-        default=1*4096,
-        help="Number of timesteps between evaluation"
-    )
-    parser.add_argument(
-        "--pretrained_model",
-        default=None,
-        help="If training should continue from a trained model, pass the path to the file here."
+        "--save_occupancy_maps",
+        action="store_true",
+        help="Saves the occupancy maps for each episode"
     )
 
     args = parser.parse_args()
-    run(
+    evaluate(
+        args.model_path,
+        args.n_episodes,
         args.window_visible,
-        args.timesteps,
-        args.n_eval_episodes,
-        args.eval_freq,
-        args.pretrained_model,
+        args.save_occupancy_maps,
     )
