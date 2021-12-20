@@ -2,7 +2,9 @@
 Object navigation by Reinforcement Learning agents using Distributed Vision. Done as a project in the course [CS-503 - "Visual Intelligence: machines & minds"](https://edu.epfl.ch/coursebook/fr/visual-intelligence-machines-and-minds-CS-503) at EPFL (fall 2021). The project report is included in the repository.
 
 <!-- [image](https://user-images.githubusercontent.com/57899625/144043367-204499ab-c7dc-4ffe-9e8d-37db83b7d00b.png) -->
+<center>
 ![distributed_siamese_small](https://user-images.githubusercontent.com/57899625/146749137-a3482d38-2da7-48a8-81cc-5b4b46881094.gif)
+</center>
 
 
 ## Project description
