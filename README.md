@@ -101,7 +101,7 @@ python stable-baselines3/baseline_distributed3.py --timesteps 3000000 --n_eval_e
 python stable-baselines3/baseline_distributed4.py --timesteps 3000000 --n_eval_episodes 10 --eval_freq 8192
 ```
 
-The logs and trained models are stored in `content/logs/`.
+The logs and trained models will be stored in `content/logs/`. You can download our trained models from this [Google Drive](https://drive.google.com/drive/folders/1P11EoH9T_KyZ-K1M_3oChmjHeh-nIt3N?usp=sharing), accessible from EPFL accounts.
 
 #### Evaluation
 
