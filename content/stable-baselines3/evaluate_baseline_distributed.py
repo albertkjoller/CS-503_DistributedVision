@@ -470,7 +470,7 @@ def evaluate(
     base_config["port"] = "5090"
 
     if test_maze:
-        base_config["scenario_path"] = Path("test.wad")
+        base_config["scenario_path"] = Path("setting/test.wad")
 
     # Create the environment and model
     env = create_env(**base_config)

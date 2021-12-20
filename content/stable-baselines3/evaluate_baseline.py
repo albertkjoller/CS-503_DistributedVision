@@ -275,7 +275,7 @@ def evaluate(
     }
 
     if test_maze:
-        config["scenario_path"] = Path("test.wad")
+        config["scenario_path"] = Path("setting/test.wad")
 
     model = PPO.load(model_path)
 

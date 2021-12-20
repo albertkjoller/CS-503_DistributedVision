@@ -17,9 +17,23 @@ The agents are operating in a [ViZDoom environment](https://github.com/mwydmuch/
 ## Repository overview
 The repository should be self-explanatory. Within the `content` directory, a `setting` directory holding the training maps and the configuration-file is located. All the reinforcement learning, the models and the wrapping of the VizDoom environment is done in the `stable-baselines3` directory. Files related to the generation and usage of the occupancy map are located in the `content` directory along with a spectator instance of the environment (taken from [ViZDoom](https://github.com/mwydmuch/ViZDoom)), that can be used to explore the maze manually and without the usage of Reinforcement Learning and learning.
 
-### Content
+### File Structure
 
-#### Installation
+The baseline model can be trained using the file `content/stable-baselines3/baseline.py`. The `content/stable-baselines3/baseline2.py` was created to try to train the model with a ResNet, but in the end was not used as it was too slow.
+
+The distributed vision models can be found in the `content/stable-baselines3/` folder, in the files `baseline_distributed1.py`, `baseline_distributed2.py`, `baseline_distributed3.py` and `baseline_distributed4.py`. The first two using threading to control the multiple agents, which we could not make resistant to the network getting out of sync. The `baseline_distributed3.py` is used to train the distributed vision model, and the `baseline_distributed4.py` to train the siamese distributed vision model. They both use processes.
+
+The `content/stable-baselines3/baseline_custom_feature_extractor.py` contains the custom ResNet18 feature extractor for the baseline (which wasn't used), and `content/stable-baselines3/baseline_distributed_custom_feature_extractor.py` contains the custom siamese feature extractor.
+
+The evaluation scripts for the baseline and distributed vision models are respectively `content/stable-baselines3/evaluate_baseline.py` and `content/stable-baselines3/evaluate_baseline_distributed.py`.
+
+The other files are part of the Stable Baselines3 codebase.
+
+### GIFs of the Trained Agents
+
+Short GIFs showing the trained agents for each model can be seen in the root of the files.
+
+### Installation
 
 To create an Azure environment with the correct packages installed, the following Dockerfile can be used.
 ```Dockerfile
@@ -89,7 +103,7 @@ RUN pip install 'matplotlib>=3.3,<3.4' \
 ENV LD_LIBRARY_PATH $AZUREML_CONDA_ENVIRONMENT_PATH/lib:$LD_LIBRARY_PATH
 ```
 
-#### Training
+### Training
 
 To train the models, from the `content/` directory, run:
 ```Bash
@@ -103,14 +117,14 @@ python stable-baselines3/baseline_distributed4.py --timesteps 3000000 --n_eval_e
 
 The logs and trained models will be stored in `content/logs/`. You can download our trained models from this [Google Drive](https://drive.google.com/drive/folders/1P11EoH9T_KyZ-K1M_3oChmjHeh-nIt3N?usp=sharing), accessible from EPFL accounts.
 
-#### Evaluation
+### Evaluation
 
 To evaluate the models, from the `content/` directory, run:
 ```Bash
 # Baseline
-python stable-baselines3/evaluate_baseline.py path/to/model --window_visible
+python stable-baselines3/evaluate_baseline.py path/to/model --window_visible --test_maze
 # Distributed Vision (all models)
-python stable-baselines3/evaluate_baseline_distributed.py path/to/model --window_visible
+python stable-baselines3/evaluate_baseline_distributed.py path/to/model --window_visible --test_maze
 ```
 
 #### A Note on Reproducibility

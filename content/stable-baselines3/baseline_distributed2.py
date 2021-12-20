@@ -18,8 +18,6 @@ from stable_baselines3.common import callbacks
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
-from baseline_distributed_custom_feature_extractor import SiameseResNetCNN
-
 
 # TODO: 1 vs 3 occupancy maps
 
