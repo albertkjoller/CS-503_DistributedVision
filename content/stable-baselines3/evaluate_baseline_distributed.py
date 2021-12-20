@@ -1,26 +1,23 @@
 import argparse
 
 from enum import Enum
-from os import read
 from pathlib import Path
 from time import sleep
 from typing import Any, List, Tuple, Callable, Optional
-from multiprocessing import cpu_count, Process, Pipe
+from multiprocessing import Process, Pipe
 
 import cv2 as cv2
 import gym as gym
-from gym.core import Env
-import matplotlib.pyplot as plt
 import numpy as np
 
 from vizdoom import vizdoom as vzd
 from gym.spaces import Space, Discrete, Box
+from tqdm import tqdm
 from stable_baselines3 import PPO
-from stable_baselines3.common import callbacks
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 
-from baseline_distributed_custom_feature_extractor import SiameseCNN, SiameseResNetCNN
+from baseline_distributed_custom_feature_extractor import SiameseCNN
 
 
 """
@@ -378,6 +375,7 @@ class DistributedVisionEnvironment(gym.Env):
 def game_creator(
     player_id: int,
     config_file_path=None,
+    scenario_path=None,
     window_visible=None,
     port=None,
     screen_resolution=None,
@@ -386,6 +384,10 @@ def game_creator(
 ) -> vzd.DoomGame:
     game = vzd.DoomGame()
     game.load_config(str(config_file_path))
+
+    if scenario_path is not None:
+        game.set_doom_scenario_path(str(scenario_path))
+
     game.set_seed(int(port) + 1000 * player_id)
     game.set_window_visible(window_visible)
     game.set_mode(vzd.Mode.PLAYER)
@@ -399,17 +401,16 @@ def game_creator(
 
 def create_env(
     config_file_path: Path = Path("../setting/settings.cfg"),
+    scenario_path: Optional[Path] = None,
     port: str = "5029",
     screen_resolution: vzd.ScreenResolution = vzd.ScreenResolution.RES_320X240,
     window_visible: bool = True,
-    buttons: List[vzd.Button] = [vzd.Button.MOVE_LEFT, vzd.Button.MOVE_RIGHT, vzd.Button.ATTACK],
+    buttons: List[vzd.Button] = [vzd.Button.MOVE_FORWARD, vzd.Button.TURN_LEFT, vzd.Button.TURN_RIGHT],
     frame_processor: Callable = frame_processor,
     num_players: int = 3,
     max_episode_length: int = 500,
     frame_skip: int = 1,
 ) -> gym.Env:
-    """"""
-
     game_creator_kwargs = {
         "config_file_path": config_file_path,
         "port": port,
@@ -418,6 +419,9 @@ def create_env(
         "buttons": buttons,
         "max_episode_length": max_episode_length,
     }
+
+    if scenario_path is not None:
+        game_creator_kwargs["scenario_path"] = scenario_path
 
     return DistributedVisionEnvironment(
         num_players,
@@ -438,28 +442,11 @@ def create_vec_env(eval: bool = False, **kwargs) -> VecTransposeImage:
     return VecTransposeImage(DummyVecEnv([lambda: create_env(**kwargs)]))
 
 
-def create_agent(env, **kwargs):
-    """"""
-    return PPO(
-        policy="CnnPolicy",
-        env=env,
-        n_epochs=10,
-        n_steps=4096,
-        batch_size=32,
-        learning_rate=1e-4,
-        tensorboard_log='logs/tensorboard',
-        policy_kwargs={'features_extractor_class': SiameseCNN},
-        verbose=1,
-        seed=0,
-        **kwargs
-    )
-
-
 def evaluate(
     model_path: str,
     num_epsisodes: int,
     window_visible: bool,
-    save_occupancy_maps: bool,
+    test_maze: bool,
 ):
     np.random.seed(0)
 
@@ -482,6 +469,9 @@ def evaluate(
     # Set the port
     base_config["port"] = "5090"
 
+    if test_maze:
+        base_config["scenario_path"] = Path("test.wad")
+
     # Create the environment and model
     env = create_env(**base_config)
     model = PPO.load(model_path)
@@ -489,7 +479,7 @@ def evaluate(
     # Evaluate
     rewards = []
     steps = []
-    for episode_num in range(num_epsisodes):
+    for episode_num in tqdm(range(num_epsisodes)):
         obs = env.reset()
         
         episode_steps = 0
@@ -506,12 +496,6 @@ def evaluate(
 
         rewards.append(episode_reward)
         steps.append(episode_steps)
-
-        print()
-        print(f"Done with episode {episode_num}!")
-        print(f"  Reward: {episode_reward}")
-        print(f"  Steps:  {episode_steps}")
-        print()
 
     print(f"\n\n\n{50 * '-'}\n")
     print("Done Evaluating")
@@ -552,9 +536,9 @@ if __name__ == "__main__":
         help="Shows the video for each agent"
     )
     parser.add_argument(
-        "--save_occupancy_maps",
+        "--test_maze",
         action="store_true",
-        help="Saves the occupancy maps for each episode"
+        help="Run the evaluation on the test maze"
     )
 
     args = parser.parse_args()
@@ -562,5 +546,5 @@ if __name__ == "__main__":
         args.model_path,
         args.n_episodes,
         args.window_visible,
-        args.save_occupancy_maps,
+        args.test_maze,
     )

@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Optional
 from threading import Thread
 
 import cv2 as cv2
@@ -9,11 +9,9 @@ import numpy as np
 
 from vizdoom import vizdoom
 from gym.spaces import Space, Discrete, Box
+from tqdm import tqdm
 from stable_baselines3 import PPO
-from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
-
-from baseline_custom_feature_extractor import ResNet18
 
 
 GAME_PORT = 5055
@@ -163,6 +161,7 @@ def create_env(
     experiment_id: int = 0,
     player_id: int = 0,
     config_file_path: Path = Path("setting/settings.cfg"),
+    scenario_path: Optional[Path] = None,
     screen_resolution: vizdoom.ScreenResolution = vizdoom.ScreenResolution.RES_320X240,
     window_visible: bool = True,
     buttons: List[vizdoom.Button] = [vizdoom.Button.MOVE_FORWARD, vizdoom.Button.TURN_LEFT, vizdoom.Button.TURN_RIGHT],
@@ -173,6 +172,10 @@ def create_env(
     """"""
     game = vizdoom.DoomGame()
     game.load_config(str(config_file_path))
+
+    if scenario_path is not None:
+        game.set_doom_scenario_path(str(scenario_path))
+
     game.set_seed(player_id)
     game.set_window_visible(window_visible)
     game.set_mode(vizdoom.Mode.PLAYER)
@@ -224,7 +227,11 @@ def create_vec_env(**kwargs) -> VecTransposeImage:
 def single_agent_evaluation(num_episodes: int, config: dict, model: PPO, results: list):
     env = create_vec_env(**config)
 
-    for episode_num in range(num_episodes):
+    loop = range(num_episodes)
+    if config["player_id"] == 0:
+        loop = tqdm(loop)
+
+    for episode_num in loop:
         obs = env.reset()
         
         episode_steps = 0
@@ -243,19 +250,12 @@ def single_agent_evaluation(num_episodes: int, config: dict, model: PPO, results
 
         results.append((episode_reward[0], episode_steps))
 
-        if config["player_id"] == 0:
-            print()
-            print(f"Done with episode {episode_num}!")
-            print(f"  Reward: {episode_reward}")
-            print(f"  Steps:  {episode_steps}")
-            print()
-
 
 def evaluate(
     model_path: str,
     num_episodes: int,
     window_visible: bool,
-    save_occupancy_maps: bool,
+    test_maze: bool,
 ):
     num_players = 3
 
@@ -273,6 +273,9 @@ def evaluate(
         "max_episode_length": 2000,
         "frame_skip": 4,
     }
+
+    if test_maze:
+        config["scenario_path"] = Path("test.wad")
 
     model = PPO.load(model_path)
 
@@ -359,9 +362,9 @@ if __name__ == "__main__":
         help="Shows the video for each agent"
     )
     parser.add_argument(
-        "--save_occupancy_maps",
+        "--test_maze",
         action="store_true",
-        help="Saves the occupancy maps for each episode"
+        help="Run the evaluation on the test maze"
     )
 
     args = parser.parse_args()
@@ -369,5 +372,5 @@ if __name__ == "__main__":
         args.model_path,
         args.n_episodes,
         args.window_visible,
-        args.save_occupancy_maps,
+        args.test_maze,
     )
