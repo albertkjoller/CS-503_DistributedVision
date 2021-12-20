@@ -23,8 +23,14 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecTransposeImage
 from baseline_distributed_custom_feature_extractor import SiameseCNN, SiameseResNetCNN
 
 
-# python stable-baselines3/evaluate_baseline_distributed.py results/logs/final_models/ppo_distributed_vision3_azure_3m/ppo_distributed_vision3_final --window_visible
-# python stable-baselines3/evaluate_baseline_distributed.py results/logs/final_models/ppo_distributed_vision2_1/ppo_distributed_vision2_final --window_visible
+"""
+# Distributed Vision
+python stable-baselines3/evaluate_baseline_distributed.py results/logs/final_models/ppo_distributed_vision3_azure_3m/ppo_distributed_vision3_final --window_visible
+
+# Distributed Vision with Siamese Network
+python stable-baselines3/evaluate_baseline_distributed.py results/logs/models/ppo_distributed_vision_siamese/best_model --window_visible
+python stable-baselines3/evaluate_baseline_distributed.py results/logs/final_models/ppo_distributed_vision_siamese/ppo_distributed_vision_siamese_final --window_visible
+"""
 
 def frame_processor(frame):
     return cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA)
