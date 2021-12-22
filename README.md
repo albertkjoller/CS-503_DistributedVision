@@ -17,6 +17,23 @@ The agents are operating in a [ViZDoom environment](https://github.com/mwydmuch/
 ## Repository overview
 The repository should be self-explanatory. Within the `content` directory, a `setting` directory holding the training maps and the configuration-file is located. All the reinforcement learning, the models and the wrapping of the VizDoom environment is done in the `stable-baselines3` directory. Files related to the generation and usage of the occupancy map are located in the `content` directory along with a spectator instance of the environment (taken from [ViZDoom](https://github.com/mwydmuch/ViZDoom)), that can be used to explore the maze manually and without the usage of Reinforcement Learning and learning.
 
+### Dependencies
+
+The code was run using Python 3.8.
+
+* gym=0.21.0
+* numpy=1.21.2
+* opencv=4.5.3
+* pandas=1.3.4
+* pillow=8.0.0
+* pytorch=1.9.1
+* scikit-image=0.18.1
+* scipy=1.7.2
+* tensorboard=2.7.0
+* torchvision=0.9.1
+* tqdm=4.62.3
+* vizdoom=1.1.9
+
 ### File Structure
 
 The baseline model can be trained using the file `content/stable-baselines3/baseline.py`. The `content/stable-baselines3/baseline2.py` was created to try to train the model with a ResNet, but in the end was not used as it was too slow.
